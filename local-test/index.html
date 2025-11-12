@@ -1,0 +1,209 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Local Chunk Boundary Test</title>
+  <style>
+    body { font-family: system-ui, Arial; margin: 20px; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .row { display: flex; gap: 20px; }
+    .col { flex: 1; }
+    label { display: block; margin-bottom: 6px; font-weight: 600; }
+    input, select, textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px; }
+    button { padding: 10px 16px; border: 0; border-radius: 6px; background: #4f46e5; color: #fff; cursor: pointer; }
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .stat { background: #f8fafc; padding: 12px; border-radius: 6px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
+  </style>
+  <script>
+    async function runTest() {
+      const form = document.getElementById('form');
+      const data = new FormData(form);
+      const audio = document.getElementById('audio').files[0];
+      if (!audio) { alert('Select WAV audio'); return; }
+      document.getElementById('runBtn').disabled = true;
+      document.getElementById('output').textContent = 'Running...';
+      try {
+        const mode = document.querySelector('input[name="mode"]:checked').value;
+        const endpoint = mode === 'stream' ? '/run_stream' : '/run';
+        const res = await fetch(endpoint, { method: 'POST', body: data });
+        const json = await res.json();
+        document.getElementById('chunks').textContent = json.chunks;
+        document.getElementById('cuts').textContent = json.cut_boundaries;
+        document.getElementById('accuracy').textContent = json.accuracy == null ? '-' : json.accuracy.toFixed(2) + '%';
+        const cuts = (json.cuts || []).map(c => `#${c.boundary_index} ${c.prev_last} | ${c.next_first}`).join('\n');
+        document.getElementById('cutsList').textContent = cuts || '(none)';
+        const transcripts = (json.transcripts || []).map((t,i)=>`[${i}] ${t}`).join('\n\n');
+        document.getElementById('transcripts').textContent = transcripts || '(none)';
+        document.getElementById('combined').textContent = json.combined || '';
+        document.getElementById('output').textContent = 'Done';
+      } catch (e) {
+        document.getElementById('output').textContent = 'Error';
+        alert('Failed: ' + e.message);
+      } finally {
+        document.getElementById('runBtn').disabled = false;
+      }
+    }
+  </script>
+  </head>
+<body>
+  <h2>Local Chunk Boundary Test</h2>
+  <div class="card">
+    <form id="form" onsubmit="event.preventDefault(); runTest();">
+      <div class="row">
+        <div class="col">
+          <label>Audio (WAV)</label>
+          <input id="audio" name="audio" type="file" accept="audio/wav" />
+        </div>
+        <div class="col">
+          <label>Ground Truth (text file)</label>
+          <input name="groundTruthFile" type="file" accept="text/plain" />
+        </div>
+      </div>
+      <div class="row" style="margin-top: 12px;">
+        <div class="col">
+          <label>Ground Truth (paste)</label>
+          <textarea name="groundTruthText" rows="6" placeholder="Optional"></textarea>
+        </div>
+        <div class="col">
+          <div class="grid">
+            <div>
+              <label>Mode</label>
+              <div>
+                <label><input type="radio" name="mode" value="direct" checked /> Direct Whisper</label>
+                <label style="margin-left:12px;"><input type="radio" name="mode" value="stream" /> API Streaming</label>
+              </div>
+            </div>
+            <div>
+              <label>Chunk Duration (sec)</label>
+              <input name="chunkDurationSec" type="number" step="1" value="15" />
+            </div>
+            <div>
+              <label>Overlap (sec)</label>
+              <input name="overlapSec" type="number" step="0.1" value="0" />
+            </div>
+            <div>
+              <label>Language</label>
+              <select name="language">
+                <option value="se">se</option>
+                <option value="no">no</option>
+                <option value="">default</option>
+              </select>
+            </div>
+            <div>
+              <label>API Key</label>
+              <input name="apiKey" type="text" placeholder="Optional" />
+            </div>
+            <div style="grid-column: 1 / -1;">
+              <label>Whisper Base URL</label>
+              <input name="whisperBaseUrl" type="text" value="https://medsum-gw.carasent.net/whisper" />
+            </div>
+            <div style="grid-column: 1 / -1;">
+              <label>API Streaming URL</label>
+              <input name="apiUrl" type="text" placeholder="e.g., http://localhost:8080/stream-chunk or medsum-api proxy" />
+            </div>
+            <div>
+              <label>Application</label>
+              <input name="application" type="text" value="local-test" />
+            </div>
+            <div>
+              <label>Journal</label>
+              <input name="journal" type="text" value="local-1" />
+            </div>
+            <div>
+              <label>Translate</label>
+              <select name="translate"><option value="false">false</option><option value="true">true</option></select>
+            </div>
+            <div>
+              <label>Timestamps</label>
+              <select name="timestamps"><option value="false">false</option><option value="true">true</option></select>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top: 16px; display:flex; align-items:center; gap:12px;">
+        <button id="runBtn" type="submit">Run</button>
+        <button type="button" onclick="openApiKeyModal()">Create API Key</button>
+        <div id="output">Idle</div>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="grid">
+      <div class="stat">
+        <div>Chunks</div>
+        <div id="chunks" class="mono">-</div>
+      </div>
+      <div class="stat">
+        <div>Cut Boundaries</div>
+        <div id="cuts" class="mono">-</div>
+      </div>
+      <div class="stat">
+        <div>Accuracy</div>
+        <div id="accuracy" class="mono">-</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Cuts</h3>
+    <pre id="cutsList" class="mono"></pre>
+  </div>
+
+  <div class="card">
+    <h3>Per-Chunk Transcripts</h3>
+    <pre id="transcripts" class="mono"></pre>
+  </div>
+
+  <div class="card">
+    <h3>Combined Transcript</h3>
+    <pre id="combined" class="mono"></pre>
+  </div>
+
+  <div id="apiKeyModal" style="position:fixed; inset:0; background:rgba(0,0,0,.4); display:none;">
+    <div style="background:#fff; width:520px; margin:10% auto; padding:16px; border-radius:8px;">
+      <h3>Create API Key</h3>
+      <div class="grid">
+        <div>
+          <label>medsum-api URL</label>
+          <input id="mkApiUrl" type="text" value="http://localhost:3000" />
+        </div>
+        <div>
+          <label>Admin API Key</label>
+          <input id="mkAdminKey" type="text" />
+        </div>
+        <div>
+          <label>Client Name</label>
+          <input id="mkClientName" type="text" value="local-client" />
+        </div>
+      </div>
+      <div style="margin-top:12px; display:flex; gap:8px;">
+        <button type="button" onclick="createApiKey()">Create</button>
+        <button type="button" onclick="closeApiKeyModal()">Close</button>
+      </div>
+      <div style="margin-top:12px;" class="mono" id="mkResult"></div>
+      <div style="margin-top:8px; display:none; gap:8px;" id="mkActions">
+        <button type="button" onclick="copyApiKeyToField()">Copy to API Key field</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function openApiKeyModal(){ document.getElementById('apiKeyModal').style.display='block'; }
+    function closeApiKeyModal(){ document.getElementById('apiKeyModal').style.display='none'; document.getElementById('mkResult').textContent=''; document.getElementById('mkActions').style.display='none'; }
+    async function createApiKey(){
+      const fd = new FormData();
+      fd.append('medsumApiUrl', document.getElementById('mkApiUrl').value);
+      fd.append('adminApiKey', document.getElementById('mkAdminKey').value);
+      fd.append('clientName', document.getElementById('mkClientName').value);
+      const res = await fetch('/create_api_key', { method:'POST', body: fd });
+      const js = await res.json();
+      const out = js.key ? `Key: ${js.key}` : JSON.stringify(js);
+      document.getElementById('mkResult').textContent = out;
+      if (js.key){ document.getElementById('mkActions').style.display='flex'; document.getElementById('mkActions').dataset.key = js.key; }
+    }
+    function copyApiKeyToField(){ const key = document.getElementById('mkActions').dataset.key || ''; document.querySelector('input[name="apiKey"]').value = key; closeApiKeyModal(); }
+  </script>
+</body>
+</html>
