@@ -1,8 +1,0 @@
-{
-  "input_path": "sample.wav",
-  "chunk_duration_sec": 15,
-  "overlap_sec": 0,
-  "language": "se",
-  "whisper_base_url": "https://medsum-gw.carasent.net/whisper",
-  "ground_truth_path": ""
-}
