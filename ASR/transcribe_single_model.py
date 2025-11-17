@@ -1,3 +1,9 @@
+# Usage:
+#   python transcribe_single_model.py
+# Notes:
+#   - Defaults to the first .nemo model you provided (hard-coded).
+#   - Writes transcripts to ./test-data/gt and CSV to ./single_model_results.csv.
+#   - Decoding strategy mirrors app.py.
 import os
 import argparse
 import csv
@@ -7,6 +13,9 @@ import librosa
 import soundfile as sf
 import nemo.collections.asr as nemo_asr
 from omegaconf import DictConfig
+
+DEFAULT_FIRST_MODEL_PATH = \
+    "/home/harinder.bedi/BENCHMARK/MODELS_COPIED/Speech_To_Text_Finetuning.nemo"
 
 def list_audio_files(samples_dir):
     exts = {'.wav', '.mp3', '.flac', '.ogg', '.m4a', '.webm'}
@@ -60,11 +69,21 @@ def extract_text(transcription):
 
 def pick_first_model(model_dir):
     candidates = []
-    for root, _, names in os.walk(model_dir):
-        for n in names:
-            if n.lower().endswith('.nemo') or n.lower().endswith('.ckpt'):
-                candidates.append(os.path.join(root, n))
-    candidates = sorted(candidates)
+    def collect(d):
+        if not d or not os.path.isdir(d):
+            return
+        for root, _, names in os.walk(d):
+            for n in names:
+                if n.lower().endswith('.nemo') or n.lower().endswith('.ckpt'):
+                    candidates.append(os.path.join(root, n))
+    collect(model_dir)
+    collect('models')
+    collect('checkpoints')
+    collect(os.path.join('parakeet', 'model'))
+    env_mp = os.environ.get('MODEL_PATH')
+    if env_mp and os.path.exists(env_mp) and (env_mp.lower().endswith('.nemo') or env_mp.lower().endswith('.ckpt')):
+        candidates.append(env_mp)
+    candidates = sorted(set(candidates))
     if not candidates:
         raise FileNotFoundError('No model found')
     return candidates[0]
@@ -163,8 +182,12 @@ def set_decoding_strategy(model, strategy='greedy', beam_size=4, lm_path=None, a
         })
     model.change_decoding_strategy(cfg)
 
-def run(samples_dir, model_dir, output_csv, gt_dir=None, strategy='greedy', beam_size=4, lm_path=None, alpha=0.5, beta=1.0):
-    model_path = pick_first_model(model_dir)
+def run(samples_dir, model_dir, output_csv, gt_dir=None, strategy='greedy', beam_size=4, lm_path=None, alpha=0.5, beta=1.0, model_path=None):
+    if not model_path:
+        if os.path.isfile(DEFAULT_FIRST_MODEL_PATH):
+            model_path = DEFAULT_FIRST_MODEL_PATH
+        else:
+            model_path = pick_first_model(model_dir)
     if model_path.endswith('.ckpt'):
         model = nemo_asr.models.ASRModel.load_from_checkpoint(model_path)
     else:
@@ -208,17 +231,37 @@ def run(samples_dir, model_dir, output_csv, gt_dir=None, strategy='greedy', beam
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--samples-dir', type=str, default=os.path.join('test-data', 'audio'))
-    parser.add_argument('--model-dir', type=str, required=True)
+    parser.add_argument('--samples-dir', type=str, default=None)
+    parser.add_argument('--model-dir', type=str, default=None)
+    parser.add_argument('--model-path', type=str, default=DEFAULT_FIRST_MODEL_PATH)
     parser.add_argument('--output', type=str, default='single_model_results.csv')
-    parser.add_argument('--gt-dir', type=str, default=os.path.join('test-data', 'gt'))
+    parser.add_argument('--gt-dir', type=str, default=None)
     parser.add_argument('--strategy', type=str, default='greedy', choices=['greedy', 'beam', 'knelm_beam', 'flashlight_beam', 'maes'])
     parser.add_argument('--beam-size', type=int, default=4)
     parser.add_argument('--lm-path', type=str, default=None)
     parser.add_argument('--alpha', type=float, default=0.5)
     parser.add_argument('--beta', type=float, default=1.0)
     args = parser.parse_args()
-    run(args.samples_dir, args.model_dir, args.output, args.gt_dir, args.strategy, args.beam_size, args.lm_path, args.alpha, args.beta)
+    samples_dir = args.samples_dir
+    if not samples_dir or not os.path.isdir(samples_dir):
+        candidates = [
+            os.path.join('test-data', 'audio'),
+            'test-data',
+            os.path.join('test-data', 'base')
+        ]
+        samples_dir = next((p for p in candidates if os.path.isdir(p)), os.path.join('test-data', 'audio'))
+    gt_dir = args.gt_dir
+    if not gt_dir:
+        gt_dir = os.path.join('test-data', 'gt')
+    model_dir = args.model_dir
+    if not model_dir or not os.path.isdir(model_dir):
+        candidates = [
+            'models',
+            'checkpoints',
+            os.path.join('parakeet', 'model')
+        ]
+        model_dir = next((p for p in candidates if os.path.isdir(p)), 'models')
+    run(samples_dir, model_dir, args.output, gt_dir, args.strategy, args.beam_size, args.lm_path, args.alpha, args.beta, args.model_path)
 
 if __name__ == '__main__':
     main()

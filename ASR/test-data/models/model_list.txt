@@ -1,0 +1,6 @@
+model_1: /home/harinder.bedi/BENCHMARK/MODELS_COPIED/Speech_To_Text_Finetuning.nemo
+model_2: /home/harinder.bedi/BENCHMARK/MODELS_COPIED/Speech_To_Text_Finetuning_medical_3702.nemo
+model_3: /opt/aitraining/models/nemo_experiments_med_2/Speech_To_Text_Finetuning/2025-09-13_09-45-47
+model_4: /opt/aitraining/models/nemo_experiments_med_2/Speech_To_Text_Finetuning/2025-09-13_09-48-34
+model_5: /opt/aitraining/models/nemo_experiments_med_2/Speech_To_Text_Finetuning/2025-09-19_14-06-09
+model_6: /opt/aitraining/models/nemo_experiments_med_2/Speech_To_Text_Finetuning/2025-09-25_10-14-40

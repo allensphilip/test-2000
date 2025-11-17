@@ -1,3 +1,11 @@
+"""
+Usage:
+  python audio_cutter.py --input ./test-data/base/sample_1.wav --output-dir ./test-data --chunk-seconds 30
+
+Notes:
+- Produces 30s chunks padded with trailing silence.
+- Names outputs sequentially: sample_001.wav, sample_002.wav, ...
+"""
 import os
 import math
 import argparse
