@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
-	"transcript-analysis-api/analyzer"
 	"transcript-analysis-api/subscriber"
 	"transcript-analysis-api/utils"
 	valkeystore "transcript-analysis-api/valkey"
@@ -17,7 +16,6 @@ import (
 // HandleSummaryUpload handles the upload of summary files
 func HandleSummaryUpload(logger *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sugar := logger.Sugar()
 		// Get job from form data
 		job := c.PostForm("job")
 		if job == "" {
@@ -47,9 +45,7 @@ func HandleSummaryUpload(logger *zap.Logger) gin.HandlerFunc {
 		// Open and read original file
 		originalSrc, err := originalFile.Open()
 		if err != nil {
-			sugar.Errorw("File processing failed",
-				"error", err,
-			)
+			logger.Error("File processing failed", zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process original file"})
 			return
 		}
@@ -58,8 +54,7 @@ func HandleSummaryUpload(logger *zap.Logger) gin.HandlerFunc {
 		// Open and read corrected file
 		correctedSrc, err := correctedFile.Open()
 		if err != nil {
-			sugar.Errorw("File processing failed",
-				"error", err)
+			logger.Error("File processing failed", zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process corrected file"})
 			return
 		}
@@ -68,8 +63,7 @@ func HandleSummaryUpload(logger *zap.Logger) gin.HandlerFunc {
 		// Upload original file to S3
 		originalKey := fmt.Sprintf("%s/%s_original.txt", job, job)
 		if err := utils.UploadFile(c.Request.Context(), originalSrc, originalKey); err != nil {
-			sugar.Errorw("File upload failed",
-				"error", err)
+			logger.Error("File upload failed", zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload original file"})
 			return
 		}
@@ -77,8 +71,7 @@ func HandleSummaryUpload(logger *zap.Logger) gin.HandlerFunc {
 		// Upload corrected file to S3 (saved as summary file)
 		correctedKey := fmt.Sprintf("%s/%s_summary.txt", job, job)
 		if err := utils.UploadFile(c.Request.Context(), correctedSrc, correctedKey); err != nil {
-			sugar.Errorw("File upload failed",
-				"error", err)
+			logger.Error("File upload failed", zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload corrected file"})
 			return
 		}
@@ -97,7 +90,6 @@ func HandleSummaryUpload(logger *zap.Logger) gin.HandlerFunc {
 // HandleTriggerSummaryAnalysis triggers the summary analysis for a given job
 func HandleTriggerSummaryAnalysis(logger *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sugar := logger.Sugar()
 		job := c.Param("job")
 		if job == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "job is required"})
@@ -106,8 +98,8 @@ func HandleTriggerSummaryAnalysis(logger *zap.Logger) gin.HandlerFunc {
 
 		// Create the payload
 		payload := subscriber.SummaryCompletePayload{
-			Job:         job,
-			Bucket:      "medsum-data",
+			Job:          job,
+			Bucket:       "medsum-data",
 			OriginalFile: fmt.Sprintf("%s/%s_original.txt", job, job),
 			SummaryFile:  fmt.Sprintf("%s/%s_summary.txt", job, job),
 		}
@@ -116,15 +108,13 @@ func HandleTriggerSummaryAnalysis(logger *zap.Logger) gin.HandlerFunc {
 		ctx := c.Request.Context()
 		message, err := json.Marshal(payload)
 		if err != nil {
-			sugar.Errorw("Message serialization failed",
-				"error", err)
+			logger.Error("Message serialization failed", zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create analysis request"})
 			return
 		}
 
-		if err := valkeystore.RawClient.Publish(ctx, subscriber.SummaryCompleteChannel, message).Err(); err != nil {
-			sugar.Errorw("Message publishing failed",
-				"error", err)
+		if err := valkeystore.Client.Publish(ctx, subscriber.SummaryCompleteChannel, string(message)).Err(); err != nil {
+			logger.Error("Message publishing failed", zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to trigger analysis"})
 			return
 		}
@@ -139,7 +129,6 @@ func HandleTriggerSummaryAnalysis(logger *zap.Logger) gin.HandlerFunc {
 // HandleGetSummaryAnalysis returns the summary analysis results for a given job
 func HandleGetSummaryAnalysis(logger *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sugar := logger.Sugar()
 		job := c.Param("job")
 		if job == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "job is required"})
@@ -159,9 +148,7 @@ func HandleGetSummaryAnalysis(logger *zap.Logger) gin.HandlerFunc {
 				return
 			}
 
-			sugar.Errorw("Analysis retrieval failed",
-				"error", err,
-			)
+			logger.Error("Analysis retrieval failed", zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve analysis"})
 			return
 		}
@@ -175,17 +162,14 @@ func HandleGetSummaryAnalysis(logger *zap.Logger) gin.HandlerFunc {
 // HandleListSummaryAnalysis returns all summary analysis results from the database
 func HandleListSummaryAnalysis(logger *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sugar := logger.Sugar()
 		// Query all results from the database
 		rows, err := utils.DB.Query(`
-			SELECT id, file_name, wer, cer, bleu, created_at, updated_at
-			FROM summary_analysis_results
-			ORDER BY created_at DESC
-		`)
+            SELECT id, file_name, wer, cer, bleu, created_at, updated_at
+            FROM summary_analysis_results
+            ORDER BY created_at DESC
+        `)
 		if err != nil {
-			sugar.Errorw("Database query failed",
-				"error", err,
-			)
+			logger.Error("Database query failed", zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve summary analysis results"})
 			return
 		}
@@ -200,9 +184,7 @@ func HandleListSummaryAnalysis(logger *zap.Logger) gin.HandlerFunc {
 			var createdAt, updatedAt string
 
 			if err := rows.Scan(&id, &fileName, &wer, &cer, &bleu, &createdAt, &updatedAt); err != nil {
-				sugar.Errorw("Data scanning failed",
-					"error", err,
-				)
+				logger.Error("Data scanning failed", zap.Error(err))
 				continue
 			}
 

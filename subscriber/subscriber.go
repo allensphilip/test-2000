@@ -11,7 +11,6 @@ import (
 	"transcript-analysis-api/utils"
 	valkeystore "transcript-analysis-api/valkey"
 
-	"github.com/valkey-io/valkey-go"
 	"go.uber.org/zap"
 )
 
@@ -44,50 +43,37 @@ func StartSubscribers(logger *zap.Logger) {
 
 // startSubscriber is a generic subscriber that handles both transcription and summary messages
 func startSubscriber(logger *zap.Logger, channel string, processor func(*zap.Logger, string)) {
-	sugar := logger.Sugar()
-	sugar.Infow("Message subscriber started",
-		"channel", channel)
+	logger.Info("Message subscriber started", zap.String("channel", channel))
 
 	ctx := context.Background()
-	vkClient := valkeystore.RawClient
+	rdb := valkeystore.Client
 
-	pubSub := vkClient.PubSub()
+	pubSub := rdb.Subscribe(ctx, channel)
 	defer pubSub.Close()
-
-	// Subscribe to the specified channel
-	if err := pubSub.Subscribe(ctx, channel).Err(); err != nil {
-		sugar.Errorw("Failed to subscribe to channel",
-			"channel", channel,
-			"error", err)
-		return
-	}
 
 	// Listen for messages
 	for {
 		msg, err := pubSub.ReceiveMessage(ctx)
 		if err != nil {
-			sugar.Errorw("Failed to receive message",
-				"channel", channel,
-				"error", err)
+			logger.Error("Failed to receive message", zap.String("channel", channel), zap.Error(err))
 			time.Sleep(5 * time.Second) // Wait before retrying
 			continue
 		}
 
 		// Ensure message is not empty
-		if strings.TrimSpace(msg.Message) == "" {
-			sugar.Warn("Received empty message from pub/sub")
+		if strings.TrimSpace(msg.Payload) == "" {
+			logger.Warn("Received empty message from pub/sub")
 			return
 		}
 
 		// Process the full message asynchronously (message contains JSON payload)
-		go processor(logger, msg.Message)
+		go processor(logger, msg.Payload)
 	}
 }
 
 // processTranscriptionJob processes transcription analysis jobs
 func processTranscriptionJob(logger *zap.Logger, message string) {
 	ctx := context.Background()
-	sugar := logger.Sugar()
 	var payload TranscribeCompletePayload
 
 	// Try to parse as JSON first
@@ -98,7 +84,7 @@ func processTranscriptionJob(logger *zap.Logger, message string) {
 			// treat as a plain job id
 			job := strings.TrimSpace(message)
 			if job == "" {
-				sugar.Error("Received empty transcription job message")
+				logger.Error("Received empty transcription job message")
 				return
 			}
 			payload = TranscribeCompletePayload{
@@ -111,7 +97,7 @@ func processTranscriptionJob(logger *zap.Logger, message string) {
 			// treat as plain job
 			job := strings.TrimSpace(unquoted)
 			if job == "" {
-				sugar.Error("Received empty transcription job message")
+				logger.Error("Received empty transcription job message")
 				return
 			}
 			payload = TranscribeCompletePayload{
@@ -123,30 +109,27 @@ func processTranscriptionJob(logger *zap.Logger, message string) {
 		}
 	}
 
-	sugar.Info("Processing transcription analysis request")
+	logger.Info("Processing transcription analysis request")
 
 	// Perform the analysis with bucket and file paths from the event
 	result, err := analyzer.AnalyzeTranscripts(ctx, logger, payload.Bucket, payload.TranscribedFile, payload.CorrectedFile)
 	if err != nil {
-		sugar.Errorw("Analysis process failed",
-			"error", err)
+		logger.Error("Analysis process failed", zap.Error(err))
 		return
 	}
 
 	// Store results in both database and cache
 	if err := storeAnalysisResult(logger, "analysis_results", "analysis", payload.Job, result); err != nil {
-		sugar.Errorw("Result storage failed",
-			"error", err)
+		logger.Error("Result storage failed", zap.Error(err))
 		return
 	}
 
-	sugar.Info("Transcription analysis completed successfully")
+	logger.Info("Transcription analysis completed successfully")
 }
 
 // processSummaryJob processes summary analysis jobs
 func processSummaryJob(logger *zap.Logger, message string) {
 	ctx := context.Background()
-	sugar := logger.Sugar()
 	var payload SummaryCompletePayload
 
 	// Try to parse as JSON first
@@ -157,7 +140,7 @@ func processSummaryJob(logger *zap.Logger, message string) {
 			// treat as a plain job id
 			job := strings.TrimSpace(message)
 			if job == "" {
-				sugar.Error("Received empty summary job message")
+				logger.Error("Received empty summary job message")
 				return
 			}
 			payload = SummaryCompletePayload{
@@ -170,7 +153,7 @@ func processSummaryJob(logger *zap.Logger, message string) {
 			// treat as plain job
 			job := strings.TrimSpace(unquoted)
 			if job == "" {
-				sugar.Error("Received empty summary job message")
+				logger.Error("Received empty summary job message")
 				return
 			}
 			payload = SummaryCompletePayload{
@@ -182,30 +165,27 @@ func processSummaryJob(logger *zap.Logger, message string) {
 		}
 	}
 
-	sugar.Info("Processing summary analysis request")
+	logger.Info("Processing summary analysis request")
 
 	// Perform the analysis with bucket and file paths from the event
 	result, err := analyzer.AnalyzeSummary(ctx, logger, payload.Bucket, payload.OriginalFile, payload.SummaryFile)
 	if err != nil {
-		sugar.Errorw("Analysis process failed",
-			"error", err)
+		logger.Error("Analysis process failed", zap.Error(err))
 		return
 	}
 
 	// Store results in both database and cache
 	if err := storeAnalysisResult(logger, "summary_analysis_results", "summary", payload.Job, result); err != nil {
-		sugar.Errorw("Result storage failed",
-			"error", err)
+		logger.Error("Result storage failed", zap.Error(err))
 		return
 	}
 
-	sugar.Info("Summary analysis completed successfully")
+	logger.Info("Summary analysis completed successfully")
 }
 
 // storeAnalysisResult stores the analysis result in both database and cache
 func storeAnalysisResult(logger *zap.Logger, tableName, cachePrefix, job string, result *analyzer.AnalysisResult) error {
 	ctx := context.Background()
-	sugar := logger.Sugar()
 
 	// Store in database
 	query := fmt.Sprintf(`
@@ -221,23 +201,20 @@ func storeAnalysisResult(logger *zap.Logger, tableName, cachePrefix, job string,
 	_, err := utils.DB.ExecContext(ctx, query,
 		result.FileName, result.WER, result.CER, result.BLEU, result.Timestamp, result.Timestamp)
 	if err != nil {
-		sugar.Errorw("Database storage failed",
-			"error", err)
+		logger.Error("Database storage failed", zap.Error(err))
 		return err
 	}
 
 	// Store in cache
 	jsonData, err := json.Marshal(result)
 	if err != nil {
-		sugar.Errorw("Data marshaling failed",
-			"error", err)
+		logger.Error("Data marshaling failed", zap.Error(err))
 		return err
 	}
 
 	cacheKey := fmt.Sprintf("%s:%s", cachePrefix, job)
 	if err := valkeystore.Client.Set(ctx, cacheKey, string(jsonData), 24*time.Hour).Err(); err != nil {
-		sugar.Errorw("Cache storage failed",
-			"error", err)
+		logger.Error("Cache storage failed", zap.Error(err))
 		return err
 	}
 

@@ -16,7 +16,6 @@ import (
 // HandleTranscriptionUpload handles the upload of transcription files
 func HandleTranscriptionUpload(logger *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sugar := logger.Sugar()
 		// Get job from form data
 		job := c.PostForm("job")
 		if job == "" {
@@ -46,9 +45,7 @@ func HandleTranscriptionUpload(logger *zap.Logger) gin.HandlerFunc {
 		// Open and read transcription (original) file
 		originalSrc, err := transcriptionFile.Open()
 		if err != nil {
-			sugar.Errorw("File processing failed",
-				"error", err,
-			)
+			logger.Error("File processing failed", zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process original file"})
 			return
 		}
@@ -56,8 +53,7 @@ func HandleTranscriptionUpload(logger *zap.Logger) gin.HandlerFunc {
 		// Open and read corrected file
 		transcribedSrc, err := correctedFile.Open()
 		if err != nil {
-			sugar.Errorw("File processing failed",
-				"error", err)
+			logger.Error("File processing failed", zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process corrected file"})
 			return
 		}
@@ -66,8 +62,7 @@ func HandleTranscriptionUpload(logger *zap.Logger) gin.HandlerFunc {
 		// Upload transcribed (original) file to S3
 		transcribedKey := fmt.Sprintf("%s/%s_transcribed.txt", job, job)
 		if err := utils.UploadFile(c.Request.Context(), originalSrc, transcribedKey); err != nil {
-			sugar.Errorw("File upload failed",
-				"error", err)
+			logger.Error("File upload failed", zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload original file"})
 			return
 		}
@@ -75,8 +70,7 @@ func HandleTranscriptionUpload(logger *zap.Logger) gin.HandlerFunc {
 		// Upload corrected file to S3 (saved as corrected file)
 		correctedKey := fmt.Sprintf("%s/%s_corrected.txt", job, job)
 		if err := utils.UploadFile(c.Request.Context(), transcribedSrc, correctedKey); err != nil {
-			sugar.Errorw("File upload failed",
-				"error", err)
+			logger.Error("File upload failed", zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload corrected file"})
 			return
 		}
@@ -95,7 +89,6 @@ func HandleTranscriptionUpload(logger *zap.Logger) gin.HandlerFunc {
 // HandleTriggerTranscriptionAnalysis triggers the transcription analysis for a given job
 func HandleTriggerTranscriptionAnalysis(logger *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sugar := logger.Sugar()
 		job := c.Param("job")
 		if job == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "job is required"})
@@ -114,15 +107,13 @@ func HandleTriggerTranscriptionAnalysis(logger *zap.Logger) gin.HandlerFunc {
 		ctx := c.Request.Context()
 		message, err := json.Marshal(payload)
 		if err != nil {
-			sugar.Errorw("Message serialization failed",
-				"error", err)
+			logger.Error("Message serialization failed", zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create analysis request"})
 			return
 		}
 
-		if err := valkeystore.RawClient.Publish(ctx, subscriber.TranscribeCompleteChannel, message).Err(); err != nil {
-			sugar.Errorw("Message publishing failed",
-				"error", err)
+		if err := valkeystore.Client.Publish(ctx, subscriber.TranscribeCompleteChannel, string(message)).Err(); err != nil {
+			logger.Error("Message publishing failed", zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to trigger analysis"})
 			return
 		}
@@ -137,17 +128,14 @@ func HandleTriggerTranscriptionAnalysis(logger *zap.Logger) gin.HandlerFunc {
 // HandleListTranscriptionAnalysis returns all transcription analysis results from the database
 func HandleListTranscriptionAnalysis(logger *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sugar := logger.Sugar()
 		// Query all results from the database
 		rows, err := utils.DB.Query(`
-			SELECT id, file_name, wer, cer, bleu, created_at, updated_at
-			FROM analysis_results
-			ORDER BY created_at DESC
-		`)
+            SELECT id, file_name, wer, cer, bleu, created_at, updated_at
+            FROM analysis_results
+            ORDER BY created_at DESC
+        `)
 		if err != nil {
-			sugar.Errorw("Database query failed",
-				"error", err,
-			)
+			logger.Error("Database query failed", zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve analysis results"})
 			return
 		}
@@ -162,9 +150,7 @@ func HandleListTranscriptionAnalysis(logger *zap.Logger) gin.HandlerFunc {
 			var createdAt, updatedAt string
 
 			if err := rows.Scan(&id, &fileName, &wer, &cer, &bleu, &createdAt, &updatedAt); err != nil {
-				sugar.Errorw("Data scanning failed",
-					"error", err,
-				)
+				logger.Error("Data scanning failed", zap.Error(err))
 				continue
 			}
 

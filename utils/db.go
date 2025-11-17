@@ -14,7 +14,6 @@ var DB *sql.DB
 
 // InitDB initializes the PostgreSQL database connection
 func InitDB(logger *zap.Logger) error {
-	sugar := logger.Sugar()
 	host := MustGetEnv("POSTGRES_HOST")
 	port := GetEnvOrDefault("POSTGRES_PORT", "5432")
 	user := MustGetEnv("POSTGRES_USER")
@@ -38,14 +37,13 @@ func InitDB(logger *zap.Logger) error {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	sugar.Info("Database connection established successfully")
+    logger.Info("Database connection established successfully")
 
 	return nil
 }
 
 // CreateSchema creates the necessary database tables if they don't exist
 func CreateSchema(logger *zap.Logger) error {
-	sugar := logger.Sugar()
 	if DB == nil {
 		return fmt.Errorf("database connection is nil; call InitDB first")
 	}
@@ -97,16 +95,15 @@ func CreateSchema(logger *zap.Logger) error {
 		return fmt.Errorf("failed to create indexes: %w", err)
 	}
 
-	sugar.Info("Database schema created successfully")
+    logger.Info("Database schema created successfully")
 	return nil
 }
 
 // CloseDB closes the database connection
 func CloseDB(logger *zap.Logger) error {
-	sugar := logger.Sugar()
-	if DB != nil {
-		sugar.Info("Closing database connection")
-		return DB.Close()
-	}
-	return nil
+    if DB != nil {
+        logger.Info("Closing database connection")
+        return DB.Close()
+    }
+    return nil
 }

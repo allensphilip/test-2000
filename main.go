@@ -31,37 +31,33 @@ func main() {
 	if err != nil {
 		log.Fatalf("cannot initialize logger: %v", err)
 	}
-	defer logger.Sync()
-	sugar := logger.Sugar()
+    defer logger.Sync()
 
 	// Initialize Valkey
 	valkeystore.InitValkey(logger)
 
 	// Initialize PostgreSQL database
-	if err := utils.InitDB(logger); err != nil {
-		sugar.Fatalw("failed to init database",
-			"error", err)
-	}
+    if err := utils.InitDB(logger); err != nil {
+        logger.Fatal("failed to init database", zap.Error(err))
+    }
 	defer utils.CloseDB(logger)
 
 	// Create database schema
-	if err := utils.CreateSchema(logger); err != nil {
-		sugar.Fatalw("failed to create database schema",
-			"error", err)
-	}
+    if err := utils.CreateSchema(logger); err != nil {
+        logger.Fatal("failed to create database schema", zap.Error(err))
+    }
 
 	// Initialize S3
-	if err := utils.InitS3(logger); err != nil {
-		sugar.Fatalw("failed to init s3",
-			"error", err)
-	}
+    if err := utils.InitS3(logger); err != nil {
+        logger.Fatal("failed to init s3", zap.Error(err))
+    }
 
 	// Start pub/sub subscribers in background
 	go subscriber.StartSubscribers(logger)
 
 	// Setup HTTP server
-	r := gin.New()
-	sugar.Info("Creating router")
+    r := gin.New()
+    logger.Info("Creating router")
 
 	r.Use(ginzap.Ginzap(logger, time.RFC3339, true))
 	r.Use(ginzap.RecoveryWithZap(logger, true))
@@ -89,8 +85,7 @@ func main() {
 		ctx.String(http.StatusOK, indexHTML)
 	})
 
-	sugar.Infow("Running on port",
-		"port", utils.MustGetEnv("APP_PORT"))
+    logger.Info("Running on port", zap.String("port", utils.MustGetEnv("APP_PORT")))
 	port := utils.MustGetEnv("APP_PORT")
 	r.Run(fmt.Sprintf(":%s", port))
 }

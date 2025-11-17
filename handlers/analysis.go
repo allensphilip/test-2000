@@ -12,8 +12,7 @@ import (
 
 // HandleGetAnalysis returns the analysis results for a given job
 func HandleGetAnalysis(logger *zap.Logger) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		sugar := logger.Sugar()
+    return func(c *gin.Context) {
 		job := c.Param("job")
 		if job == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "job is required"})
@@ -22,8 +21,8 @@ func HandleGetAnalysis(logger *zap.Logger) gin.HandlerFunc {
 
 		// Get the analysis result
 		key := fmt.Sprintf("analysis:%s", job)
-		data, err := valkeystore.Client.Get(valkeystore.Ctx, key).Result()
-		if err != nil {
+        data, err := valkeystore.Client.Get(valkeystore.Ctx, key).Result()
+        if err != nil {
 			// Check if key doesn't exist (analysis not ready yet)
 			if err.Error() == "redis: nil" || err.Error() == "valkey: nil" {
 				c.JSON(http.StatusNotFound, gin.H{
@@ -33,12 +32,10 @@ func HandleGetAnalysis(logger *zap.Logger) gin.HandlerFunc {
 				return
 			}
 
-			sugar.Errorw("Analysis retrieval failed",
-				"error", err,
-			)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve analysis"})
-			return
-		}
+            logger.Error("Analysis retrieval failed", zap.Error(err))
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve analysis"})
+            return
+        }
 
 		// Return the raw JSON data
 		c.Header("Content-Type", "application/json")

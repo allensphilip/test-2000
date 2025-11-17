@@ -25,8 +25,7 @@ func InitS3(logger *zap.Logger) error {
 	secretAccessKey := MustGetEnv("S3_SECRET_ACCESS_KEY")
 	region := GetEnvOrDefault("S3_REGION", "us-east-1")
 
-	sugar := logger.Sugar()
-	sugar.Info("Initializing cloud storage service")
+    logger.Info("Initializing cloud storage service")
 
 	cfg, err := config.LoadDefaultConfig(context.Background(),
 		config.WithRegion(region),
@@ -43,21 +42,21 @@ func InitS3(logger *zap.Logger) error {
 	}
 
 	if endpoint != "" {
-		s3Options = append(s3Options, func(o *s3.Options) {
-			o.BaseEndpoint = aws.String(endpoint)
-		})
-		sugar.Info("Using custom storage endpoint configuration")
-	} else {
-		sugar.Info("Using default cloud storage configuration")
-	}
+        s3Options = append(s3Options, func(o *s3.Options) {
+            o.BaseEndpoint = aws.String(endpoint)
+        })
+        logger.Info("Using custom storage endpoint configuration")
+    } else {
+        logger.Info("Using default cloud storage configuration")
+    }
 
 	S3Client = s3.NewFromConfig(cfg, s3Options...)
 
-	buckets, err := S3Client.ListBuckets(context.Background(), &s3.ListBucketsInput{})
-	if err == nil {
-		sugar.Info("Cloud storage service initialized successfully", "bucket_count", len(buckets.Buckets))
-	}
-	return err
+    buckets, err := S3Client.ListBuckets(context.Background(), &s3.ListBucketsInput{})
+    if err == nil {
+        logger.Info("Cloud storage service initialized successfully", zap.Int("bucket_count", len(buckets.Buckets)))
+    }
+    return err
 }
 
 // DownloadS3Object downloads an object from S3 and returns the data
