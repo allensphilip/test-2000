@@ -1,0 +1,9 @@
+flask
+flask-cors
+werkzeug
+torch
+nemo_toolkit[asr]
+omegaconf
+librosa
+soundfile
+numpy
