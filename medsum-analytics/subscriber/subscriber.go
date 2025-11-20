@@ -1,22 +1,24 @@
 package subscriber
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
-	"strconv"
-	"strings"
-	"time"
-	"transcript-analysis-api/analyzer"
-	"transcript-analysis-api/utils"
-	valkeystore "transcript-analysis-api/valkey"
+    "context"
+    "encoding/json"
+    "fmt"
+    "strconv"
+    "strings"
+    "time"
+    "transcript-analysis-api/handlers"
+    "transcript-analysis-api/analyzer"
+    "transcript-analysis-api/utils"
+    valkeystore "transcript-analysis-api/valkey"
 
-	"go.uber.org/zap"
+    "go.uber.org/zap"
 )
 
 const (
-	TranscribeCompleteChannel = "transcribe_complete"
-	SummaryCompleteChannel    = "summary_complete"
+    TranscribeCompleteChannel = "transcribe_complete"
+    SummaryCompleteChannel    = "summary_complete"
+    CorrectionsCompleteChannel = "corrections_complete"
 )
 
 // TranscribeCompletePayload represents the data structure for transcribe_complete events
@@ -29,16 +31,19 @@ type TranscribeCompletePayload struct {
 
 // SummaryCompletePayload represents the data structure for summary_complete events
 type SummaryCompletePayload struct {
-	Job          string `json:"job"`
-	Bucket       string `json:"bucket"`
-	OriginalFile string `json:"originalFile"`
-	SummaryFile  string `json:"summaryFile"`
+    Job          string `json:"job"`
+    Bucket       string `json:"bucket"`
+    OriginalFile string `json:"originalFile"`
+    SummaryFile  string `json:"summaryFile"`
 }
+
+type CorrectionsEventPayload handlers.CorrectionEventRequest
 
 // StartSubscribers starts both transcription and summary subscribers
 func StartSubscribers(logger *zap.Logger) {
-	go startSubscriber(logger, TranscribeCompleteChannel, processTranscriptionJob)
-	go startSubscriber(logger, SummaryCompleteChannel, processSummaryJob)
+    go startSubscriber(logger, TranscribeCompleteChannel, processTranscriptionJob)
+    go startSubscriber(logger, SummaryCompleteChannel, processSummaryJob)
+    go startSubscriber(logger, CorrectionsCompleteChannel, processCorrections)
 }
 
 // startSubscriber is a generic subscriber that handles both transcription and summary messages
@@ -118,8 +123,8 @@ func processTranscriptionJob(logger *zap.Logger, message string) {
 		return
 	}
 
-	// Store results in both database and cache
-	if err := storeAnalysisResult(logger, "analysis_results", "analysis", payload.Job, result); err != nil {
+	// Store results in database
+	if err := storeAnalysisResult(logger, "analysis_results", payload.Job, result); err != nil {
 		logger.Error("Result storage failed", zap.Error(err))
 		return
 	}
@@ -174,8 +179,8 @@ func processSummaryJob(logger *zap.Logger, message string) {
 		return
 	}
 
-	// Store results in both database and cache
-	if err := storeAnalysisResult(logger, "summary_analysis_results", "summary", payload.Job, result); err != nil {
+	// Store results in database
+	if err := storeAnalysisResult(logger, "summary_analysis_results", payload.Job, result); err != nil {
 		logger.Error("Result storage failed", zap.Error(err))
 		return
 	}
@@ -183,8 +188,23 @@ func processSummaryJob(logger *zap.Logger, message string) {
 	logger.Info("Summary analysis completed successfully")
 }
 
-// storeAnalysisResult stores the analysis result in both database and cache
-func storeAnalysisResult(logger *zap.Logger, tableName, cachePrefix, job string, result *analyzer.AnalysisResult) error {
+func processCorrections(logger *zap.Logger, message string) {
+    ctx := context.Background()
+    var payload CorrectionsEventPayload
+    if err := json.Unmarshal([]byte(message), &payload); err != nil {
+        logger.Error("Invalid corrections event payload", zap.Error(err))
+        return
+    }
+    _, err := handlers.IngestCorrectionEvent(ctx, logger, handlers.CorrectionEventRequest(payload))
+    if err != nil {
+        logger.Error("Corrections event ingest failed", zap.Error(err))
+        return
+    }
+    logger.Info("Corrections event ingested successfully")
+}
+
+// storeAnalysisResult stores the analysis result in database
+func storeAnalysisResult(logger *zap.Logger, tableName, job string, result *analyzer.AnalysisResult) error {
 	ctx := context.Background()
 
 	// Store in database
@@ -202,19 +222,6 @@ func storeAnalysisResult(logger *zap.Logger, tableName, cachePrefix, job string,
 		result.FileName, result.WER, result.CER, result.BLEU, result.Timestamp, result.Timestamp)
 	if err != nil {
 		logger.Error("Database storage failed", zap.Error(err))
-		return err
-	}
-
-	// Store in cache
-	jsonData, err := json.Marshal(result)
-	if err != nil {
-		logger.Error("Data marshaling failed", zap.Error(err))
-		return err
-	}
-
-	cacheKey := fmt.Sprintf("%s:%s", cachePrefix, job)
-	if err := valkeystore.Client.Set(ctx, cacheKey, string(jsonData), 24*time.Hour).Err(); err != nil {
-		logger.Error("Cache storage failed", zap.Error(err))
 		return err
 	}
 

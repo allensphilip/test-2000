@@ -5,13 +5,21 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
-	"transcript-analysis-api/subscriber"
 	"transcript-analysis-api/utils"
 	valkeystore "transcript-analysis-api/valkey"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
+
+const TranscribeCompleteChannel = "transcribe_complete"
+
+type TranscribeCompletePayload struct {
+	Job             string `json:"job"`
+	Bucket          string `json:"bucket"`
+	TranscribedFile string `json:"transcribedFile"`
+	CorrectedFile   string `json:"correctedFile"`
+}
 
 // HandleTranscriptionUpload handles the upload of transcription files
 func HandleTranscriptionUpload(logger *zap.Logger) gin.HandlerFunc {
@@ -96,7 +104,7 @@ func HandleTriggerTranscriptionAnalysis(logger *zap.Logger) gin.HandlerFunc {
 		}
 
 		// Create the payload
-		payload := subscriber.TranscribeCompletePayload{
+		payload := TranscribeCompletePayload{
 			Job:             job,
 			Bucket:          "medsum-data",
 			TranscribedFile: fmt.Sprintf("%s/%s_transcribed.txt", job, job),
@@ -112,7 +120,7 @@ func HandleTriggerTranscriptionAnalysis(logger *zap.Logger) gin.HandlerFunc {
 			return
 		}
 
-		if err := valkeystore.Client.Publish(ctx, subscriber.TranscribeCompleteChannel, string(message)).Err(); err != nil {
+		if err := valkeystore.Client.Publish(ctx, TranscribeCompleteChannel, string(message)).Err(); err != nil {
 			logger.Error("Message publishing failed", zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to trigger analysis"})
 			return

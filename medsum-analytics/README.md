@@ -10,7 +10,7 @@ This service:
 2. Receives transcription completion notifications from medsum-api
 3. Retrieves original and corrected transcripts from S3
 4. Computes analysis metrics (WER, CER, BLEU, COMET)
-5. Stores results in Valkey for retrieval
+5. Stores results in PostgreSQL database for retrieval
 
 ## Architecture
 
@@ -21,7 +21,7 @@ medsum-api (transcription completion)
         → transcript-analysis-api (subscriber)
             → Fetches transcripts from S3
             → Computes metrics
-            → Stores results in Valkey
+            → Stores results in PostgreSQL
 ```
 
 ## Features

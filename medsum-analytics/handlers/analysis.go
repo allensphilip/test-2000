@@ -1,30 +1,35 @@
 package handlers
 
 import (
-	"fmt"
-	"net/http"
-	"time"
-	valkeystore "transcript-analysis-api/valkey"
+		"database/sql"
+		"net/http"
+		"time"
+		"transcript-analysis-api/utils"
 
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
+		"github.com/gin-gonic/gin"
+		"go.uber.org/zap"
 )
 
 // HandleGetAnalysis returns the analysis results for a given job
 func HandleGetAnalysis(logger *zap.Logger) gin.HandlerFunc {
-    return func(c *gin.Context) {
+	return func(c *gin.Context) {
 		job := c.Param("job")
 		if job == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "job is required"})
 			return
 		}
 
-		// Get the analysis result
-		key := fmt.Sprintf("analysis:%s", job)
-        data, err := valkeystore.Client.Get(valkeystore.Ctx, key).Result()
-        if err != nil {
-			// Check if key doesn't exist (analysis not ready yet)
-			if err.Error() == "redis: nil" || err.Error() == "valkey: nil" {
+		// Query the database for the analysis result
+		var wer, cer, bleu float64
+		var createdAt, updatedAt time.Time
+		err := utils.DB.QueryRow(`
+			SELECT wer, cer, bleu, created_at, updated_at
+			FROM analysis_results
+			WHERE file_name = $1
+		`, job).Scan(&wer, &cer, &bleu, &createdAt, &updatedAt)
+
+		if err != nil {
+			if err == sql.ErrNoRows {
 				c.JSON(http.StatusNotFound, gin.H{
 					"error":   "Analysis not found",
 					"message": "Analysis may still be processing or job is invalid",
@@ -32,14 +37,18 @@ func HandleGetAnalysis(logger *zap.Logger) gin.HandlerFunc {
 				return
 			}
 
-            logger.Error("Analysis retrieval failed", zap.Error(err))
-            c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve analysis"})
-            return
-        }
+			logger.Error("Analysis retrieval failed", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve analysis"})
+			return
+		}
 
-		// Return the raw JSON data
-		c.Header("Content-Type", "application/json")
-		c.String(http.StatusOK, data)
+		// Return the analysis result
+		c.JSON(http.StatusOK, gin.H{
+			"wer":       wer,
+			"cer":       cer,
+			"bleu":      bleu,
+			"timestamp": updatedAt,
+		})
 	}
 }
 

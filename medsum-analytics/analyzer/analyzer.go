@@ -21,88 +21,88 @@ type AnalysisResult struct {
 
 // AnalyzeTranscripts performs analysis on transcription files
 func AnalyzeTranscripts(ctx context.Context, logger *zap.Logger, bucket, originalFilePath, transcribedFilePath string) (*AnalysisResult, error) {
-    	logger.Info("Starting transcription analysis process")
+	logger.Info("Starting transcription analysis process")
 
-    	// Log high-level operation without sensitive details
-    	logger.Debug("Processing reference file for transcription analysis")
+	// Log high-level operation without sensitive details
+	logger.Debug("Processing reference file for transcription analysis")
 
 	// Download original and transcribed files from the specified bucket and paths
 	reference, err := downloadFromS3WithBucket(ctx, bucket, originalFilePath)
-    	if err != nil {
-    		logger.Error("File download failed", zap.Error(err))
-    		return nil, fmt.Errorf("failed to download original file: %w", err)
-    	}
-    	logger.Debug("Successfully downloaded reference file", zap.Int("size_bytes", len(reference)))
+	if err != nil {
+		logger.Error("File download failed", zap.Error(err))
+		return nil, fmt.Errorf("failed to download original file: %w", err)
+	}
+	logger.Debug("Successfully downloaded reference file", zap.Int("size_bytes", len(reference)))
 
 	// Download transcribed file
 	hypothesis, err := downloadFromS3WithBucket(ctx, bucket, transcribedFilePath)
-    	if err != nil {
-    		logger.Error("File download failed", zap.Error(err))
-    		return nil, fmt.Errorf("failed to download transcribed file: %w", err)
-    	}
-    	logger.Debug("Successfully downloaded hypothesis file", zap.Int("size_bytes", len(hypothesis)))
+	if err != nil {
+		logger.Error("File download failed", zap.Error(err))
+		return nil, fmt.Errorf("failed to download transcribed file: %w", err)
+	}
+	logger.Debug("Successfully downloaded hypothesis file", zap.Int("size_bytes", len(hypothesis)))
 
 	// Compute metrics
-    	metrics, err := computeMetrics(reference, hypothesis)
-    	if err != nil {
-    		logger.Error("Metrics computation failed", zap.Error(err))
-    		return nil, fmt.Errorf("failed to compute metrics: %w", err)
-    	}
+	metrics, err := computeMetrics(reference, hypothesis)
+	if err != nil {
+		logger.Error("Metrics computation failed", zap.Error(err))
+		return nil, fmt.Errorf("failed to compute metrics: %w", err)
+	}
 
 	// Extract job from the file path for identification
 	job := extractJobFromPath(transcribedFilePath)
 	metrics.FileName = job
 	metrics.Timestamp = time.Now().UTC()
 
-    	logger.Info("Transcription analysis completed successfully",
-    		zap.Float64("wer", metrics.WER),
-    		zap.Float64("cer", metrics.CER),
-    		zap.Float64("bleu", metrics.BLEU))
+	logger.Info("Transcription analysis completed successfully",
+		zap.Float64("wer", metrics.WER),
+		zap.Float64("cer", metrics.CER),
+		zap.Float64("bleu", metrics.BLEU))
 
 	return metrics, nil
 }
 
 // AnalyzeSummary performs analysis on summary files
 func AnalyzeSummary(ctx context.Context, logger *zap.Logger, bucket, originalFilePath, summaryFilePath string) (*AnalysisResult, error) {
-    	logger.Info("Starting summary analysis process")
+	logger.Info("Starting summary analysis process")
 
-    	// Log high-level operation without sensitive details
-    	logger.Debug("Processing original file for summary analysis")
+	// Log high-level operation without sensitive details
+	logger.Debug("Processing original file for summary analysis")
 
 	// Download original and summary files from the specified bucket and paths
-    	original, err := downloadFromS3WithBucket(ctx, bucket, originalFilePath)
-    	if err != nil {
-    		logger.Error("File download failed", zap.Error(err))
-    		return nil, fmt.Errorf("failed to download original file: %w", err)
-    	}
-    	logger.Debug("Successfully downloaded original file", zap.Int("size_bytes", len(original)))
+	original, err := downloadFromS3WithBucket(ctx, bucket, originalFilePath)
+	if err != nil {
+		logger.Error("File download failed", zap.Error(err))
+		return nil, fmt.Errorf("failed to download original file: %w", err)
+	}
+	logger.Debug("Successfully downloaded original file", zap.Int("size_bytes", len(original)))
 
-    	// Log high-level operation without sensitive details
-    	logger.Debug("Processing summary file for analysis")
+	// Log high-level operation without sensitive details
+	logger.Debug("Processing summary file for analysis")
 
-    	summary, err := downloadFromS3WithBucket(ctx, bucket, summaryFilePath)
-    	if err != nil {
-    		logger.Error("File download failed", zap.Error(err))
-    		return nil, fmt.Errorf("failed to download summary file: %w", err)
-    	}
-    	logger.Debug("Successfully downloaded summary file", zap.Int("size_bytes", len(summary)))
+	summary, err := downloadFromS3WithBucket(ctx, bucket, summaryFilePath)
+	if err != nil {
+		logger.Error("File download failed", zap.Error(err))
+		return nil, fmt.Errorf("failed to download summary file: %w", err)
+	}
+	logger.Debug("Successfully downloaded summary file", zap.Int("size_bytes", len(summary)))
 
 	// Compute metrics
-    	metrics, err := computeMetrics(original, summary)
-    	if err != nil {
-    		logger.Error("Metrics computation failed", zap.Error(err))
-    		return nil, fmt.Errorf("failed to compute metrics: %w", err)
-    	}
+	metrics, err := computeMetrics(original, summary)
+	if err != nil {
+		logger.Error("Metrics computation failed", zap.Error(err))
+		return nil, fmt.Errorf("failed to compute metrics: %w", err)
+	}
 
 	// Extract job from the file path for identification
 	job := extractJobFromPath(summaryFilePath)
 	metrics.FileName = job
 	metrics.Timestamp = time.Now().UTC()
 
-    	logger.Info("Summary analysis completed successfully",
-    		zap.Float64("wer", metrics.WER),
-    		zap.Float64("cer", metrics.CER),
-    		zap.Float64("bleu", metrics.BLEU))
+	logger.Info("Summary analysis completed successfully",
+		zap.Float64("wer", metrics.WER),
+		zap.Float64("cer", metrics.CER),
+		zap.Float64("bleu", metrics.BLEU))
 
 	return metrics, nil
 }

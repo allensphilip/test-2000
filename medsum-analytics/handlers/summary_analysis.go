@@ -5,13 +5,21 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
-	"transcript-analysis-api/subscriber"
 	"transcript-analysis-api/utils"
 	valkeystore "transcript-analysis-api/valkey"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
+
+const SummaryCompleteChannel = "summary_complete"
+
+type SummaryCompletePayload struct {
+	Job          string `json:"job"`
+	Bucket       string `json:"bucket"`
+	OriginalFile string `json:"originalFile"`
+	SummaryFile  string `json:"summaryFile"`
+}
 
 // HandleSummaryUpload handles the upload of summary files
 func HandleSummaryUpload(logger *zap.Logger) gin.HandlerFunc {
@@ -97,7 +105,7 @@ func HandleTriggerSummaryAnalysis(logger *zap.Logger) gin.HandlerFunc {
 		}
 
 		// Create the payload
-		payload := subscriber.SummaryCompletePayload{
+		payload := SummaryCompletePayload{
 			Job:          job,
 			Bucket:       "medsum-data",
 			OriginalFile: fmt.Sprintf("%s/%s_original.txt", job, job),
@@ -113,7 +121,7 @@ func HandleTriggerSummaryAnalysis(logger *zap.Logger) gin.HandlerFunc {
 			return
 		}
 
-		if err := valkeystore.Client.Publish(ctx, subscriber.SummaryCompleteChannel, string(message)).Err(); err != nil {
+		if err := valkeystore.Client.Publish(ctx, SummaryCompleteChannel, string(message)).Err(); err != nil {
 			logger.Error("Message publishing failed", zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to trigger analysis"})
 			return
@@ -135,12 +143,17 @@ func HandleGetSummaryAnalysis(logger *zap.Logger) gin.HandlerFunc {
 			return
 		}
 
-		// Get the analysis result
-		key := fmt.Sprintf("summary:%s", job)
-		data, err := valkeystore.Client.Get(valkeystore.Ctx, key).Result()
+		// Query the database for the summary analysis result
+		var wer, cer, bleu float64
+		var createdAt, updatedAt string
+		err := utils.DB.QueryRow(`
+			SELECT wer, cer, bleu, created_at, updated_at
+			FROM summary_analysis_results
+			WHERE file_name = $1
+		`, job).Scan(&wer, &cer, &bleu, &createdAt, &updatedAt)
+
 		if err != nil {
-			// Check if key doesn't exist (analysis not ready yet)
-			if err.Error() == "redis: nil" || err.Error() == "valkey: nil" {
+			if err.Error() == "sql: no rows in result set" {
 				c.JSON(http.StatusNotFound, gin.H{
 					"error":   "Summary analysis not found",
 					"message": "Analysis may still be processing or job is invalid",
@@ -153,9 +166,13 @@ func HandleGetSummaryAnalysis(logger *zap.Logger) gin.HandlerFunc {
 			return
 		}
 
-		// Return the raw JSON data
-		c.Header("Content-Type", "application/json")
-		c.String(http.StatusOK, data)
+		// Return the analysis result
+		c.JSON(http.StatusOK, gin.H{
+			"wer":       wer,
+			"cer":       cer,
+			"bleu":      bleu,
+			"timestamp": updatedAt,
+		})
 	}
 }
 
