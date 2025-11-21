@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASR Host - Audio Transcription</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --color-primary: #D97706;
+            --color-primary-dark: #B45309;
+            --color-ash-light: #F9FAFB;
+            --color-ash-neutral: #F3F4F6;
+            --color-ash-medium: #E5E7EB;
+            --color-ash-dark: #D1D5DB;
+            --color-text-primary: #1F2937;
+            --color-text-secondary: #6B7280;
+            --color-border: #E5E7EB;
+            --color-success: #10B981;
+            --color-warning: #F59E0B;
+            --color-error: #EF4444;
+        }
+
+        * {
+            color-scheme: light;
+        }
+
+        .btn-primary {
+            background-color: var(--color-primary);
+            color: white;
+            transition: background-color 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--color-primary-dark);
+        }
+
+        .card {
+            background-color: white;
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+        }
+
+        .section-header {
+            color: var(--color-text-primary);
+            border-bottom: 2px solid var(--color-ash-medium);
+        }
+
+        .input-field {
+            border: 1px solid var(--color-border);
+            background-color: var(--color-ash-light);
+            color: var(--color-text-primary);
+        }
+
+        .input-field:focus {
+            border-color: var(--color-primary);
+            background-color: white;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1);
+        }
+
+        .badge-status {
+            background-color: var(--color-ash-neutral);
+            color: var(--color-text-primary);
+        }
+
+        .badge-status.active {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: var(--color-success);
+            border: 1px solid var(--color-success);
+        }
+
+        .pulse-recording {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .upload-zone {
+            border: 2px dashed var(--color-primary);
+            background-color: rgba(217, 119, 6, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .upload-zone:hover {
+            background-color: rgba(217, 119, 6, 0.1);
+            border-color: var(--color-primary-dark);
+        }
+
+        .output-panel {
+            background: linear-gradient(135deg, var(--color-ash-light) 0%, var(--color-ash-neutral) 100%);
+        }
+
+        .text-accent {
+            color: var(--color-primary);
+        }
+    </style>
+</head>
+<body class="bg-white" style="color: var(--color-text-primary);">
+    <div class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="sticky top-0 z-50 border-b border-gray-200 bg-white shadow-sm">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center">
+                        <span class="text-white font-bold text-lg">♪</span>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-accent">ASR Host</h1>
+                        <p class="text-xs text-gray-500">Automatic Speech Recognition</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="px-3 py-1 rounded-full badge-status text-sm font-medium">Ready</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Left Column: Controls -->
+                <div class="lg:col-span-2 space-y-6">
+                    <!-- Model Status Card -->
+                    <div class="card p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-xl font-bold section-header pb-3 w-full">Model Status</h2>
+                        </div>
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between p-3 bg-ash-light rounded-lg border border-gray-200">
+                                <span style="color: var(--color-text-secondary);">Model State</span>
+                                <span class="font-semibold badge-status px-3 py-1 rounded text-sm active">Online</span>
+                            </div>
+                            <div class="flex items-center justify-between p-3 bg-ash-light rounded-lg border border-gray-200">
+                                <span style="color: var(--color-text-secondary);">GPU Memory</span>
+                                <span class="font-semibold">7.2 GB / 24 GB</span>
+                            </div>
+                            <button onclick="refreshModelStatus()" class="w-full mt-2 btn-primary py-2 rounded-lg font-medium transition-all hover:shadow-md">
+                                Refresh Status
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Decoding Configuration -->
+                    <div class="card p-6">
+                        <h2 class="text-xl font-bold section-header pb-3 mb-4">Decoding Configuration</h2>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-semibold mb-2" style="color: var(--color-text-primary);">Strategy</label>
+                                <select id="strategy" class="w-full input-field px-3 py-2 rounded-lg">
+                                    <option>greedy</option>
+                                    <option>beam_search</option>
+                                    <option>viterbi</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold mb-2" style="color: var(--color-text-primary);">Beam Size</label>
+                                <input type="number" id="beamSize" value="32" min="1" max="100" class="w-full input-field px-3 py-2 rounded-lg">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold mb-2" style="color: var(--color-text-primary);">LM Path</label>
+                                <input type="text" id="lmPath" placeholder="/path/to/language/model" class="w-full input-field px-3 py-2 rounded-lg">
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-semibold mb-2" style="color: var(--color-text-primary);">LM Alpha</label>
+                                    <input type="number" id="lmAlpha" value="0.5" step="0.1" class="w-full input-field px-3 py-2 rounded-lg">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold mb-2" style="color: var(--color-text-primary);">LM Beta</label>
+                                    <input type="number" id="lmBeta" value="0.1" step="0.1" class="w-full input-field px-3 py-2 rounded-lg">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Audio Input Section -->
+                    <div class="card p-6">
+                        <h2 class="text-xl font-bold section-header pb-3 mb-4">Audio Input</h2>
+                        <div class="space-y-4">
+                            <!-- File Upload -->
+                            <div>
+                                <label class="block text-sm font-semibold mb-3" style="color: var(--color-text-primary);">Upload Audio File</label>
+                                <div class="upload-zone p-8 rounded-lg text-center cursor-pointer transition-all" onclick="document.getElementById('fileInput').click()">
+                                    <svg class="w-12 h-12 mx-auto mb-2 text-accent opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                    </svg>
+                                    <p class="font-semibold mb-1">Drag and drop audio file</p>
+                                    <p style="color: var(--color-text-secondary);" class="text-sm">or click to select (MP3, WAV, OGG)</p>
+                                </div>
+                                <input type="file" id="fileInput" accept="audio/*" class="hidden" onchange="handleFileUpload(event)">
+                            </div>
+
+                            <!-- Live Recording -->
+                            <div class="border-t pt-4">
+                                <label class="block text-sm font-semibold mb-3" style="color: var(--color-text-primary);">Live Recording</label>
+                                <div class="flex gap-2">
+                                    <button onclick="startRecording()" class="flex-1 btn-primary py-3 rounded-lg font-medium transition-all hover:shadow-md">
+                                        🎙️ Start Recording
+                                    </button>
+                                    <button onclick="stopRecording()" class="flex-1 bg-gray-300 text-gray-700 py-3 rounded-lg font-medium transition-all hover:bg-gray-400">
+                                        ⏹️ Stop
+                                    </button>
+                                </div>
+                                <div id="recordingStatus" class="mt-3 p-3 rounded-lg hidden" style="background-color: rgba(16, 185, 129, 0.1); color: var(--color-success);">
+                                    <span class="pulse-recording">●</span> Recording in progress...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Output & Results -->
+                <div class="lg:col-span-1">
+                    <div class="card p-6 sticky top-24">
+                        <h2 class="text-xl font-bold section-header pb-3 mb-4">Transcription Output</h2>
+                        <div class="output-panel rounded-lg p-4 min-h-96 max-h-96 overflow-y-auto border border-gray-200">
+                            <div id="outputText" style="color: var(--color-text-secondary);" class="text-sm leading-relaxed">
+                                <p class="italic">Transcription will appear here...</p>
+                            </div>
+                        </div>
+                        <div class="mt-4 space-y-2">
+                            <button onclick="clearOutput()" class="w-full bg-gray-200 text-gray-700 py-2 rounded-lg font-medium transition-all hover:bg-gray-300">
+                                Clear Output
+                            </button>
+                            <button onclick="copyOutput()" class="w-full bg-gray-100 text-gray-700 py-2 rounded-lg font-medium transition-all hover:bg-gray-200">
+                                Copy Text
+                            </button>
+                            <button onclick="downloadOutput()" class="w-full btn-primary py-2 rounded-lg font-medium transition-all hover:shadow-md">
+                                Download
+                            </button>
+                        </div>
+                        <div class="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200">
+                            <p class="text-xs text-blue-700"><strong>Tip:</strong> Configure your model settings on the left before transcribing.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Model Status
+        async function refreshModelStatus() {
+            try {
+                const response = await fetch('/api/model-status');
+                const data = await response.json();
+                console.log("[v0] Model status:", data);
+            } catch (error) {
+                console.error("[v0] Error fetching model status:", error);
+                alert('Failed to refresh model status');
+            }
+        }
+
+        // File Upload
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                console.log("[v0] File selected:", file.name);
+                const formData = new FormData();
+                formData.append('audio', file);
+                
+                fetch('/api/transcribe', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log("[v0] Transcription result:", data);
+                    document.getElementById('outputText').innerHTML = `<p>${data.text || 'No transcription available'}</p>`;
+                })
+                .catch(error => {
+                    console.error("[v0] Error uploading file:", error);
+                    document.getElementById('outputText').innerHTML = '<p style="color: var(--color-error);">Error processing audio file</p>';
+                });
+            }
+        }
+
+        // Recording
+        let mediaRecorder;
+        let audioChunks = [];
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.onstart = () => {
+                    document.getElementById('recordingStatus').classList.remove('hidden');
+                    console.log("[v0] Recording started");
+                };
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    const formData = new FormData();
+                    formData.append('audio', audioBlob, 'recording.wav');
+                    
+                    fetch('/api/transcribe', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log("[v0] Recording transcription result:", data);
+                        document.getElementById('outputText').innerHTML = `<p>${data.text || 'No transcription available'}</p>`;
+                    })
+                    .catch(error => {
+                        console.error("[v0] Error processing recording:", error);
+                        document.getElementById('outputText').innerHTML = '<p style="color: var(--color-error);">Error processing recording</p>';
+                    });
+                };
+
+                mediaRecorder.start();
+            } catch (error) {
+                console.error("[v0] Microphone access denied:", error);
+                alert('Microphone access denied. Please allow microphone permissions.');
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                document.getElementById('recordingStatus').classList.add('hidden');
+                console.log("[v0] Recording stopped");
+            }
+        }
+
+        // Output Management
+        function clearOutput() {
+            document.getElementById('outputText').innerHTML = '<p style="color: var(--color-text-secondary);" class="italic">Transcription will appear here...</p>';
+            console.log("[v0] Output cleared");
+        }
+
+        function copyOutput() {
+            const text = document.getElementById('outputText').innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                console.log("[v0] Text copied to clipboard");
+                alert('Text copied to clipboard!');
+            }).catch(err => {
+                console.error("[v0] Failed to copy text:", err);
+            });
+        }
+
+        function downloadOutput() {
+            const text = document.getElementById('outputText').innerText;
+            const element = document.createElement('a');
+            element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+            element.setAttribute('download', 'transcription.txt');
+            element.style.display = 'none';
+            document.body.appendChild(element);
+            element.click();
+            document.body.removeChild(element);
+            console.log("[v0] Transcription downloaded");
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("[v0] ASR Host interface loaded");
+        });
+    </script>
+</body>
+</html>
