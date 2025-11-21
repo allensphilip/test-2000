@@ -1,16 +1,16 @@
 package handlers
 
 import (
-    "database/sql"
-    "encoding/json"
-    "fmt"
-    "net/http"
-    "path/filepath"
-    "transcript-analysis-api/utils"
-    valkeystore "transcript-analysis-api/valkey"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"path/filepath"
+	"transcript-analysis-api/utils"
+	valkeystore "transcript-analysis-api/valkey"
 
-    "github.com/gin-gonic/gin"
-    "go.uber.org/zap"
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 const SummaryCompleteChannel = "summary_complete"
@@ -137,59 +137,79 @@ func HandleTriggerSummaryAnalysis(logger *zap.Logger) gin.HandlerFunc {
 
 // HandleGetSummaryAnalysis returns the summary analysis results for a given job
 func HandleGetSummaryAnalysis(logger *zap.Logger) gin.HandlerFunc {
-    return func(c *gin.Context) {
-        job := c.Param("job")
-        if job == "" {
-            c.JSON(http.StatusBadRequest, gin.H{"error": "job is required"})
-            return
-        }
+	return func(c *gin.Context) {
+		job := c.Param("job")
+		if job == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "job is required"})
+			return
+		}
 
-        // Query the database for the summary analysis result (with metadata)
-        var wer, cer, bleu float64
-        var createdAt, updatedAt string
-        var jobId, modelId sql.NullString
-        var promptId, clientId sql.NullInt64
-        var explanationIds sql.NullString
-        err := utils.DB.QueryRow(`
+		// Query the database for the summary analysis result (with metadata)
+		var wer, cer, bleu float64
+		var createdAt, updatedAt string
+		var jobId, modelId sql.NullString
+		var promptId, clientId sql.NullInt64
+		var explanationIds sql.NullString
+		err := utils.DB.QueryRow(`
             SELECT wer, cer, bleu, job_id, model_id, prompt_id, client_id, explanation_ids, created_at, updated_at
             FROM summary_analysis_results
             WHERE file_name = $1
         `, job).Scan(&wer, &cer, &bleu, &jobId, &modelId, &promptId, &clientId, &explanationIds, &createdAt, &updatedAt)
 
-        if err != nil {
-            if err.Error() == "sql: no rows in result set" {
-                c.JSON(http.StatusNotFound, gin.H{
-                    "error":   "Summary analysis not found",
-                    "message": "Analysis may still be processing or job is invalid",
-                })
-                return
-            }
+		if err != nil {
+			if err.Error() == "sql: no rows in result set" {
+				c.JSON(http.StatusNotFound, gin.H{
+					"error":   "Summary analysis not found",
+					"message": "Analysis may still be processing or job is invalid",
+				})
+				return
+			}
 
-            logger.Error("Analysis retrieval failed", zap.Error(err))
-            c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve analysis"})
-            return
-        }
+			logger.Error("Analysis retrieval failed", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve analysis"})
+			return
+		}
 
-        var expIds []int
-        if explanationIds.Valid && len(explanationIds.String) > 0 {
-            _ = json.Unmarshal([]byte(explanationIds.String), &expIds)
-        }
+		var expIds []int
+		if explanationIds.Valid && len(explanationIds.String) > 0 {
+			_ = json.Unmarshal([]byte(explanationIds.String), &expIds)
+		}
 
-        // Return the analysis result with metadata
-        c.JSON(http.StatusOK, gin.H{
-            "wer":       wer,
-            "cer":       cer,
-            "bleu":      bleu,
-            "timestamp": updatedAt,
-            "metadata": gin.H{
-                "job_id":        func() interface{} { if jobId.Valid { return jobId.String } ; return nil }(),
-                "model_id":      func() interface{} { if modelId.Valid { return modelId.String } ; return nil }(),
-                "prompt_id":     func() interface{} { if promptId.Valid { return promptId.Int64 } ; return nil }(),
-                "client_id":     func() interface{} { if clientId.Valid { return clientId.Int64 } ; return nil }(),
-                "explanation_ids": expIds,
-            },
-        })
-    }
+		// Return the analysis result with metadata
+		c.JSON(http.StatusOK, gin.H{
+			"wer":       wer,
+			"cer":       cer,
+			"bleu":      bleu,
+			"timestamp": updatedAt,
+			"metadata": gin.H{
+				"job_id": func() interface{} {
+					if jobId.Valid {
+						return jobId.String
+					}
+					return nil
+				}(),
+				"model_id": func() interface{} {
+					if modelId.Valid {
+						return modelId.String
+					}
+					return nil
+				}(),
+				"prompt_id": func() interface{} {
+					if promptId.Valid {
+						return promptId.Int64
+					}
+					return nil
+				}(),
+				"client_id": func() interface{} {
+					if clientId.Valid {
+						return clientId.Int64
+					}
+					return nil
+				}(),
+				"explanation_ids": expIds,
+			},
+		})
+	}
 }
 
 // HandleListSummaryAnalysis returns all summary analysis results from the database

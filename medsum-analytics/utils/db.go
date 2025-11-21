@@ -44,14 +44,14 @@ func InitDB(logger *zap.Logger) error {
 
 // CreateSchema creates the necessary database tables if they don't exist
 func CreateSchema(logger *zap.Logger) error {
-    if DB == nil {
-        return fmt.Errorf("database connection is nil; call InitDB first")
-    }
+	if DB == nil {
+		return fmt.Errorf("database connection is nil; call InitDB first")
+	}
 
-    ctx := context.Background()
+	ctx := context.Background()
 
-    // Create analysis_results table
-    _, err := DB.ExecContext(ctx, `
+	// Create analysis_results table
+	_, err := DB.ExecContext(ctx, `
         CREATE TABLE IF NOT EXISTS analysis_results (
             id SERIAL PRIMARY KEY,
             file_name VARCHAR(255) NOT NULL,
@@ -63,12 +63,12 @@ func CreateSchema(logger *zap.Logger) error {
             UNIQUE(file_name)
         )
     `)
-    if err != nil {
-        return fmt.Errorf("failed to create analysis_results table: %w", err)
-    }
+	if err != nil {
+		return fmt.Errorf("failed to create analysis_results table: %w", err)
+	}
 
-    // Create summary analysis table with metadata fields
-    _, err = DB.ExecContext(ctx, `
+	// Create summary analysis table with metadata fields
+	_, err = DB.ExecContext(ctx, `
         CREATE TABLE IF NOT EXISTS summary_analysis_results (
             id SERIAL PRIMARY KEY,
             file_name VARCHAR(255) NOT NULL,
@@ -85,12 +85,12 @@ func CreateSchema(logger *zap.Logger) error {
             UNIQUE(file_name)
         )
     `)
-    if err != nil {
-        return fmt.Errorf("failed to create summary_analysis_results table: %w", err)
-    }
+	if err != nil {
+		return fmt.Errorf("failed to create summary_analysis_results table: %w", err)
+	}
 
-    // Create indexes
-    _, err = DB.ExecContext(ctx, `
+	// Create indexes
+	_, err = DB.ExecContext(ctx, `
         CREATE INDEX IF NOT EXISTS idx_analysis_file_name ON analysis_results(file_name);
         CREATE INDEX IF NOT EXISTS idx_analysis_created_at ON analysis_results(created_at);
         CREATE INDEX IF NOT EXISTS idx_summary_file_name ON summary_analysis_results(file_name);
@@ -98,19 +98,19 @@ func CreateSchema(logger *zap.Logger) error {
         CREATE INDEX IF NOT EXISTS idx_summary_meta_job ON summary_analysis_results(job_id);
         CREATE INDEX IF NOT EXISTS idx_summary_meta_prompt ON summary_analysis_results(prompt_id);
     `)
-    if err != nil {
-        return fmt.Errorf("failed to create indexes: %w", err)
-    }
+	if err != nil {
+		return fmt.Errorf("failed to create indexes: %w", err)
+	}
 
-    logger.Info("Database schema created successfully")
-    return nil
+	logger.Info("Database schema created successfully")
+	return nil
 }
 
 // CloseDB closes the database connection
 func CloseDB(logger *zap.Logger) error {
-    if DB != nil {
-        logger.Info("Closing database connection")
-        return DB.Close()
-    }
-    return nil
+	if DB != nil {
+		logger.Info("Closing database connection")
+		return DB.Close()
+	}
+	return nil
 }

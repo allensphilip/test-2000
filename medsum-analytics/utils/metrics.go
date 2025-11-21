@@ -1,7 +1,7 @@
 package utils
 
 import (
-    "expvar"
+	"expvar"
 )
 
 var CorrectionsIngestTotal = expvar.NewInt("corrections_ingest_total")

@@ -1,32 +1,21 @@
 package main
 
 import (
-    "embed"
-    "fmt"
-    "log"
-    "net/http"
-    "os"
-    "time"
-    "transcript-analysis-api/handlers"
-    "transcript-analysis-api/subscriber"
-    "transcript-analysis-api/testui"
-    "transcript-analysis-api/utils"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+	"transcript-analysis-api/handlers"
+	"transcript-analysis-api/subscriber"
+	"transcript-analysis-api/utils"
 
-    valkeystore "transcript-analysis-api/valkey"
+	valkeystore "transcript-analysis-api/valkey"
 
-    ginzap "github.com/gin-contrib/zap"
-    "github.com/gin-gonic/gin"
-    "go.uber.org/zap"
-    "go.uber.org/zap/zapcore"
+	ginzap "github.com/gin-contrib/zap"
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
-
-var webFS embed.FS
-
-//go:embed web/index.html
-var indexHTML string
-
-//go:embed web/test-e2e.html
-var testE2EHTML string
 
 func main() {
 	cfg := zap.NewProductionConfig()
@@ -80,7 +69,7 @@ func main() {
 	r.POST("/summary-analysis/upload", handlers.HandleSummaryUpload(logger))
 	r.POST("/summary-analysis/trigger/:job", handlers.HandleTriggerSummaryAnalysis(logger))
 
-    // Correction analytics routes removed
+	// Correction analytics routes removed
 
 	// Metrics
 	r.GET("/metrics", handlers.HandleMetrics())
@@ -92,11 +81,6 @@ func main() {
 	r.GET("/healthcheck", func(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, gin.H{"message": "ok"})
 	})
-
-    if os.Getenv("ENABLE_TEST_UI") != "false" {
-        testui.RegisterRoutes(r, "/", indexHTML)
-        testui.RegisterRoutes(r, "/test", testE2EHTML)
-    }
 
 	logger.Info("Running on port", zap.String("port", utils.MustGetEnv("APP_PORT")))
 	port := utils.MustGetEnv("APP_PORT")

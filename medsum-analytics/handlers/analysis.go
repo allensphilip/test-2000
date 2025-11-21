@@ -1,13 +1,13 @@
 package handlers
 
 import (
-		"database/sql"
-		"net/http"
-		"time"
-		"transcript-analysis-api/utils"
+	"database/sql"
+	"net/http"
+	"time"
+	"transcript-analysis-api/utils"
 
-		"github.com/gin-gonic/gin"
-		"go.uber.org/zap"
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 // HandleGetAnalysis returns the analysis results for a given job
