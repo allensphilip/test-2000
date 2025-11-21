@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>End-to-End Analytics Test</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; line-height: 1.5; background: #f5f5f5; }
+    h1 { font-size: 24px; margin-bottom: 8px; color: #333; }
+    h2 { font-size: 18px; margin-top: 24px; margin-bottom: 12px; color: #555; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-bottom: 16px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    label { font-weight: 600; display: block; margin-top: 12px; margin-bottom: 4px; color: #333; }
+    input[type="text"], textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-family: monospace; font-size: 13px; }
+    textarea { min-height: 100px; resize: vertical; }
+    button { margin-top: 12px; margin-right: 8px; padding: 10px 16px; border: 1px solid #0078d4; background: #0a84ff; color: #fff; border-radius: 6px; cursor: pointer; font-weight: 500; }
+    button:hover { background: #006fcc; }
+    button.secondary { border-color: #999; background: #f5f5f5; color: #222; }
+    button.secondary:hover { background: #e5e5e5; }
+    button.success { background: #28a745; border-color: #28a745; }
+    button.success:hover { background: #218838; }
+    .step { background: #e8f4f8; border-left: 4px solid #0a84ff; padding: 12px; margin-bottom: 16px; border-radius: 4px; }
+    .step-num { font-weight: bold; color: #0a84ff; margin-right: 8px; }
+    .log { background: #1e1e1e; color: #d4d4d4; border-radius: 6px; padding: 12px; font-family: 'Courier New', monospace; font-size: 12px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin-top: 12px; }
+    .log-success { color: #4ec9b0; }
+    .log-error { color: #f48771; }
+    .log-info { color: #569cd6; }
+    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 12px; }
+    .metric { background: #f9f9f9; border: 1px solid #eee; border-radius: 6px; padding: 12px; text-align: center; }
+    .metric-label { font-size: 12px; color: #666; margin-bottom: 4px; }
+    .metric-value { font-size: 24px; font-weight: bold; color: #0a84ff; }
+    .help { color: #666; font-size: 13px; margin-top: 8px; }
+    .status-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; margin-left: 8px; }
+    .status-pending { background: #fff3cd; color: #856404; }
+    .status-running { background: #cfe2ff; color: #084298; }
+    .status-success { background: #d1e7dd; color: #0f5132; }
+    .status-error { background: #f8d7da; color: #842029; }
+  </style>
+</head>
+<body>
+  <h1>🧪 End-to-End Analytics Test</h1>
+  <p class="help">Complete workflow test: Setup → Summary Correction → Valkey Publish → Analytics Processing</p>
+
+  <!-- Step 1: Configuration -->
+  <div class="card">
+    <div class="step">
+      <span class="step-num">Step 1:</span> Configuration
+    </div>
+    <label for="apiUrl">MedSum API URL</label>
+    <input id="apiUrl" type="text" value="http://localhost:3000" placeholder="http://localhost:3000" />
+    
+    <label for="adminApiKey">Admin API Key</label>
+    <input id="adminApiKey" type="text" value="12345" placeholder="12345" />
+    
+    <label for="clientName">Client Name (bucket)</label>
+    <input id="clientName" type="text" placeholder="test-client" />
+    
+    <label for="application">Application</label>
+    <input id="application" type="text" placeholder="test-app" value="test-app" />
+    
+    <label for="journal">Journal ID</label>
+    <input id="journal" type="text" placeholder="12345" value="12345" />
+
+    <button id="btnCreateClient" class="success">Create Client & Get API Key</button>
+    <p class="help">Note: text-analysis feature must be enabled in database for Valkey publishing to work</p>
+    
+    <label for="apiKey">Client API Key (auto-filled)</label>
+    <input id="apiKey" type="text" placeholder="Will be filled after creating client" readonly />
+  </div>
+
+  <!-- Step 2: Seed S3 Data -->
+  <div class="card">
+    <div class="step">
+      <span class="step-num">Step 2:</span> Seed S3 with Summary & Metadata
+    </div>
+    
+    <label for="originalText">Original Text (Reference)</label>
+    <textarea id="originalText" placeholder="Enter the original text that will be compared against">Patient reports headache and dizziness. Vital signs stable. Prescribed medication and follow-up in one week.</textarea>
+    
+    <label for="summaryText">Generated Summary</label>
+    <textarea id="summaryText" placeholder="Enter the AI-generated summary">Patient has headache and dizzines. Vitals normal. Medicine given, checkup next week.</textarea>
+
+    <button id="btnSeedS3">📤 Upload to S3 (Original + Summary)</button>
+    <button id="btnViewMetadata" class="secondary">👁️ View Stored Metadata</button>
+    <p class="help">This uploads the original and summary files to S3 with metadata (model_id, prompt_id, etc.)</p>
+  </div>
+
+  <!-- Step 3: Test Summary Correction -->
+  <div class="card">
+    <div class="step">
+      <span class="step-num">Step 3:</span> Submit Corrected Summary
+    </div>
+    
+    <label for="correctedText">Corrected Summary Text</label>
+    <textarea id="correctedText" placeholder="Enter the human-corrected summary">Patient reports headache and dizziness. Vital signs stable. Medication prescribed and follow-up scheduled in one week.</textarea>
+    
+    <button id="btnSubmitCorrection">✅ Submit Correction (Trigger Valkey Publish)</button>
+    <p class="help">This calls /v1/text/summary/correction which publishes to summary_complete channel</p>
+  </div>
+
+  <!-- Step 4: Monitor Valkey -->
+  <div class="card">
+    <div class="step">
+      <span class="step-num">Step 4:</span> Monitor Valkey Pub/Sub
+    </div>
+    
+    <button id="btnCheckValkey">🔍 Check Valkey Published Messages</button>
+    <button id="btnManualPublish" class="secondary">📢 Manual Publish to Valkey (Test)</button>
+    <p class="help">Verify that the summary_complete event was published to Valkey</p>
+    <div id="valkeyLog" class="log"></div>
+  </div>
+
+  <!-- Step 5: Check Analytics Results -->
+  <div class="card">
+    <div class="step">
+      <span class="step-num">Step 5:</span> Verify Analytics Results
+    </div>
+    
+    <button id="btnCheckAnalytics">📊 Fetch Analytics Results</button>
+    <button id="btnCheckRawDB" class="secondary">🗄️ Query Database Directly</button>
+    
+    <div class="metrics">
+      <div class="metric">
+        <div class="metric-label">WER (Word Error Rate)</div>
+        <div class="metric-value" id="metricWER">-</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">CER (Character Error Rate)</div>
+        <div class="metric-value" id="metricCER">-</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">BLEU Score</div>
+        <div class="metric-value" id="metricBLEU">-</div>
+      </div>
+    </div>
+
+    <h2>Metadata</h2>
+    <div id="metadataDisplay" class="log"></div>
+  </div>
+
+  <!-- Activity Log -->
+  <div class="card">
+    <h2>📋 Activity Log</h2>
+    <div id="activityLog" class="log"></div>
+  </div>
+
+  <script>
+    const log = (msg, type = 'info') => {
+      const timestamp = new Date().toLocaleTimeString();
+      const logEl = document.getElementById('activityLog');
+      const className = type === 'error' ? 'log-error' : type === 'success' ? 'log-success' : 'log-info';
+      logEl.innerHTML = `<span class="${className}">[${timestamp}] ${msg}</span>\n` + logEl.innerHTML;
+    };
+
+    // Step 1: Create Client
+    document.getElementById('btnCreateClient').addEventListener('click', async () => {
+      const apiUrl = document.getElementById('apiUrl').value.trim();
+      const adminKey = document.getElementById('adminApiKey').value.trim();
+      const clientName = document.getElementById('clientName').value.trim();
+      
+      if (!apiUrl || !adminKey || !clientName) {
+        log('Please fill API URL, admin key, and client name', 'error');
+        return;
+      }
+
+      try {
+        log('Creating client...', 'info');
+        const res = await fetch(`${apiUrl}/internal/auth/client`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': adminKey },
+          body: JSON.stringify({ name: clientName }),
+        });
+        
+        const data = await res.json();
+        if (res.ok && data.key) {
+          document.getElementById('apiKey').value = data.key;
+          log(`✓ Client created: ${clientName}, API Key: ${data.key}`, 'success');
+        } else {
+          log(`✗ Failed to create client: ${data.message || res.status}`, 'error');
+        }
+      } catch (e) {
+        log(`✗ Error: ${e.message}`, 'error');
+      }
+    });
+
+    // Step 1b: Enable Feature (Manual SQL)
+    log('To enable text-analysis feature, run SQL:', 'info');
+    log('INSERT INTO "Feature" (key, enabled) VALUES (\'text-analysis\', true) ON CONFLICT (key) DO UPDATE SET enabled = true;', 'info');
+
+    // Step 2: Seed S3
+    document.getElementById('btnSeedS3').addEventListener('click', async () => {
+      const apiUrl = document.getElementById('apiUrl').value.trim();
+      const apiKey = document.getElementById('apiKey').value.trim();
+      const application = document.getElementById('application').value.trim();
+      const journal = document.getElementById('journal').value.trim();
+      const originalText = document.getElementById('originalText').value;
+      const summaryText = document.getElementById('summaryText').value;
+      
+      if (!apiKey) {
+        log('Please create a client first to get API key', 'error');
+        return;
+      }
+
+      try {
+        log('Generating summary via API to seed S3...', 'info');
+        const res = await fetch(`${apiUrl}/v1/text/summary`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+          body: JSON.stringify({
+            application,
+            journal: parseInt(journal),
+            journalForm: '{}',
+            language: 'se',
+            text: originalText,
+          }),
+        });
+        
+        const data = await res.json();
+        if (res.ok) {
+          log(`✓ Summary generated and stored in S3`, 'success');
+          log(`  Bucket: ${document.getElementById('clientName').value}`, 'info');
+          log(`  Files: ${application}/${journal}_*.txt`, 'info');
+          document.getElementById('summaryText').value = data.summary || summaryText;
+        } else {
+          log(`✗ Failed to generate summary: ${data.message}`, 'error');
+        }
+      } catch (e) {
+        log(`✗ Error: ${e.message}`, 'error');
+      }
+    });
+
+    document.getElementById('btnViewMetadata').addEventListener('click', () => {
+      const bucket = document.getElementById('clientName').value;
+      const application = document.getElementById('application').value;
+      const journal = document.getElementById('journal').value;
+      log(`Metadata should be stored in S3: s3://${bucket}/${application}/${journal}_metadata.json`, 'info');
+    });
+
+    // Step 3: Submit Correction
+    document.getElementById('btnSubmitCorrection').addEventListener('click', async () => {
+      const apiUrl = document.getElementById('apiUrl').value.trim();
+      const apiKey = document.getElementById('apiKey').value.trim();
+      const application = document.getElementById('application').value.trim();
+      const journal = document.getElementById('journal').value.trim();
+      const correctedText = document.getElementById('correctedText').value;
+      
+      if (!apiKey || !correctedText) {
+        log('Please provide API key and corrected text', 'error');
+        return;
+      }
+
+      try {
+        log('Submitting correction...', 'info');
+        const res = await fetch(`${apiUrl}/v1/text/summary/correction`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+          body: JSON.stringify({
+            application,
+            journal: parseInt(journal),
+            text: correctedText,
+          }),
+        });
+        
+        const data = await res.json();
+        if (res.ok) {
+          log(`✓ Correction submitted successfully`, 'success');
+          log(`✓ Published to Valkey channel: summary_complete`, 'success');
+        } else {
+          log(`✗ Failed to submit correction: ${data.message}`, 'error');
+        }
+      } catch (e) {
+        log(`✗ Error: ${e.message}`, 'error');
+      }
+    });
+
+    // Step 4: Check Valkey
+    document.getElementById('btnCheckValkey').addEventListener('click', () => {
+      const valkeyLog = document.getElementById('valkeyLog');
+      valkeyLog.textContent = 'Valkey monitoring requires Redis CLI or backend endpoint.\n\n';
+      valkeyLog.textContent += 'Run: docker exec -it medsum-analytics-redis-1 redis-cli\n';
+      valkeyLog.textContent += 'Then: SUBSCRIBE summary_complete\n\n';
+      valkeyLog.textContent += 'Or check analytics logs for subscriber messages.';
+      log('Check Valkey subscriber in analytics container logs', 'info');
+    });
+
+    document.getElementById('btnManualPublish').addEventListener('click', async () => {
+      log('Manual publish would require a backend endpoint or Redis CLI access', 'info');
+      log('Use: PUBLISH summary_complete \'{"job":"test-app","bucket":"test-client","originalFile":"test-app/12345_original.txt","summaryFile":"test-app/12345_correction.txt"}\'', 'info');
+    });
+
+    // Step 5: Check Analytics
+    document.getElementById('btnCheckAnalytics').addEventListener('click', async () => {
+      const application = document.getElementById('application').value.trim();
+      
+      try {
+        log('Fetching analytics results...', 'info');
+        const res = await fetch(`http://localhost:8080/summary-analysis/${encodeURIComponent(application)}`);
+        const data = await res.json();
+        
+        if (res.ok && data) {
+          document.getElementById('metricWER').textContent = data.wer?.toFixed(4) || '-';
+          document.getElementById('metricCER').textContent = data.cer?.toFixed(4) || '-';
+          document.getElementById('metricBLEU').textContent = data.bleu?.toFixed(4) || '-';
+          
+          const metadataEl = document.getElementById('metadataDisplay');
+          metadataEl.textContent = JSON.stringify(data.metadata || {}, null, 2);
+          
+          log(`✓ Analytics results retrieved successfully`, 'success');
+        } else {
+          log(`✗ No analytics results found for: ${application}`, 'error');
+        }
+      } catch (e) {
+        log(`✗ Error: ${e.message}`, 'error');
+      }
+    });
+
+    document.getElementById('btnCheckRawDB').addEventListener('click', () => {
+      log('Run SQL: SELECT * FROM summary_analysis_results ORDER BY updated_at DESC LIMIT 5;', 'info');
+      log('Docker: docker exec -it medsum-analytics-postgres-1 psql -U analytics_user -d analytics_db', 'info');
+    });
+
+    // Initial log
+    log('E2E Test interface ready', 'success');
+  </script>
+</body>
+</html>

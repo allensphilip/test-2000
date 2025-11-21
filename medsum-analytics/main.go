@@ -25,6 +25,9 @@ var webFS embed.FS
 //go:embed web/index.html
 var indexHTML string
 
+//go:embed web/test-e2e.html
+var testE2EHTML string
+
 func main() {
 	cfg := zap.NewProductionConfig()
 	cfg.EncoderConfig.TimeKey = ""
@@ -77,10 +80,7 @@ func main() {
 	r.POST("/summary-analysis/upload", handlers.HandleSummaryUpload(logger))
 	r.POST("/summary-analysis/trigger/:job", handlers.HandleTriggerSummaryAnalysis(logger))
 
-	// Correction analytics routes
-	r.POST("/corrections/events", handlers.HandleCreateCorrectionEvent(logger))
-	r.GET("/corrections/events/:promptId", handlers.HandleGetCorrectionEvent(logger))
-	r.GET("/corrections/events", handlers.HandleListCorrectionEvents(logger))
+    // Correction analytics routes removed
 
 	// Metrics
 	r.GET("/metrics", handlers.HandleMetrics())
@@ -95,6 +95,7 @@ func main() {
 
     if os.Getenv("ENABLE_TEST_UI") != "false" {
         testui.RegisterRoutes(r, "/", indexHTML)
+        testui.RegisterRoutes(r, "/test", testE2EHTML)
     }
 
 	logger.Info("Running on port", zap.String("port", utils.MustGetEnv("APP_PORT")))

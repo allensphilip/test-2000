@@ -86,59 +86,6 @@
   </div>
 
   <div class="card" data-section="api">
-    <h2>S3 Seed (MedSum API LocalStack)</h2>
-    <div class="row">
-      <div class="col">
-        <label for="seedApplication">Application (bucket prefix)</label>
-        <input id="seedApplication" type="text" value="client-a" />
-      </div>
-      <div class="col">
-        <label for="seedJournal">Journal</label>
-        <input id="seedJournal" type="text" value="42" />
-      </div>
-      <div class="col">
-        <label for="seedToken">Token</label>
-        <input id="seedToken" type="text" value="manual1" />
-      </div>
-    </div>
-    <div class="row">
-      <div class="col">
-        <label for="seedSummary">Summary text</label>
-        <textarea id="seedSummary">Corrected patient summary content</textarea>
-      </div>
-      <div class="col">
-        <label for="seedMeta">Metadata JSON</label>
-        <textarea id="seedMeta">{"jobId":"job-123","modelId":"gpt-4o-mini","promptId":17,"clientId":101,"explanationIds":[3,7,11]}</textarea>
-      </div>
-    </div>
-    <div class="row">
-      <div class="col">
-        <button id="btnShowS3Seed" class="secondary">Show S3 seed commands</button>
-        <button id="btnCopyCurlSeed" class="secondary">Copy commands</button>
-      </div>
-    </div>
-    <p class="help">Run these commands to upload <code>_summery.txt</code> and <code>_metadata.json</code> into the client bucket on LocalStack used by MedSum API.</p>
-  </div>
-
-  <div class="card" data-section="api">
-    <h2>Valkey Subscribe</h2>
-    <div class="row">
-      <div class="col">
-        <label for="vkMode">Target</label>
-        <input id="vkMode" type="text" value="docker-analytics-redis" />
-        <p class="help">Use <code>docker-analytics-redis</code> to subscribe on analytics Redis, or set to <code>host-local</code> for localhost:6379</p>
-      </div>
-    </div>
-    <div class="row">
-      <div class="col">
-        <button id="btnShowValkeySub" class="secondary">Show subscribe command</button>
-        <button id="btnCopyValkeySub" class="secondary">Copy command</button>
-      </div>
-    </div>
-    <p class="help">Open a terminal, run the command, then trigger correction to observe <code>summary_complete</code>.</p>
-  </div>
-
-  <div class="card" data-section="api">
     <h2>Generate Summary via MedSum API</h2>
     <div class="row">
       <div class="col">
@@ -211,45 +158,6 @@
       const el = document.getElementById('curlOut');
       if (el) el.textContent = cmd;
     }
-
-    function buildS3SeedCommands() {
-      const application = document.getElementById('seedApplication').value.trim();
-      const journal = document.getElementById('seedJournal').value.trim();
-      const token = document.getElementById('seedToken').value.trim();
-      const summary = document.getElementById('seedSummary').value;
-      const meta = document.getElementById('seedMeta').value;
-      if (!application || !journal || !token || !summary || !meta) {
-        log('Seed fields are required');
-        return;
-      }
-      const summaryEsc = summary.replace(/"/g,'\\"');
-      const metaEsc = meta.replace(/"/g,'\\"');
-      const makeFiles = `echo "${summaryEsc}" > summary.txt\n`+
-        `echo "${metaEsc}" > meta.json`;
-      const uploadSummary = `docker run --rm --network medsum -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_DEFAULT_REGION=us-east-1 -v %cd%:/data amazon/aws-cli s3 cp /data/summary.txt s3://${application}/${application}/${journal}_${token}_summery.txt --endpoint-url http://localstack:4566`;
-      const uploadMeta = `docker run --rm --network medsum -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_DEFAULT_REGION=us-east-1 -v %cd%:/data amazon/aws-cli s3 cp /data/meta.json s3://${application}/${application}/${journal}_${token}_metadata.json --endpoint-url http://localstack:4566`;
-      const verify = `docker run --rm --network medsum -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_DEFAULT_REGION=us-east-1 amazon/aws-cli s3api list-objects --bucket ${application} --prefix ${application}/${journal}_ --endpoint-url http://localstack:4566`;
-      setCurlOut(`${makeFiles}\n\n${uploadSummary}\n${uploadMeta}\n\n${verify}`);
-      log('S3 seed commands ready');
-    }
-
-    document.getElementById('btnShowS3Seed').addEventListener('click', buildS3SeedCommands);
-    document.getElementById('btnCopyCurlSeed').addEventListener('click', () => { const el = document.getElementById('curlOut'); if (el && el.textContent) { navigator.clipboard.writeText(el.textContent); log('Copied S3 seed commands'); } });
-
-    function buildValkeySubscribe() {
-      const mode = document.getElementById('vkMode').value.trim();
-      let cmd = '';
-      if (mode === 'host-local') {
-        cmd = `redis-cli -h 127.0.0.1 -p 6379 SUBSCRIBE summary_complete`;
-      } else {
-        cmd = `docker run --rm --network medsum-analytics_default redis:7-alpine redis-cli -h redis -p 6379 SUBSCRIBE summary_complete`;
-      }
-      setCurlOut(cmd);
-      log('Valkey subscribe command ready');
-    }
-
-    document.getElementById('btnShowValkeySub').addEventListener('click', buildValkeySubscribe);
-    document.getElementById('btnCopyValkeySub').addEventListener('click', () => { const el = document.getElementById('curlOut'); if (el && el.textContent) { navigator.clipboard.writeText(el.textContent); log('Copied subscribe command'); } });
 
     async function uploadFiles() {
       const job = jobEl.value.trim();
@@ -366,7 +274,7 @@
       const adminKey = document.getElementById('adminApiKey').value.trim();
       const clientName = document.getElementById('clientName').value.trim();
       if (!apiUrl || !adminKey || !clientName) { log('API URL, admin key and client name are required'); return; }
-      const url = `${apiUrl}/internal/auth/client`;
+      const url = `${apiUrl}/internal/client`;
       const body = { name: clientName };
       try {
         const res = await fetch(url, {
@@ -399,7 +307,7 @@
       const adminKey = document.getElementById('adminApiKey').value.trim();
       const clientName = document.getElementById('clientName').value.trim();
       const payload = JSON.stringify({ name: clientName }).replace(/"/g, '\\"');
-      const cmd = `curl -X POST\n  -H "Content-Type: application/json"\n  -H "x-api-key: ${adminKey}"\n  -d "${payload}"\n  ${apiUrl}/internal/auth/client`;
+      const cmd = `curl -X POST\n  -H "Content-Type: application/json"\n  -H "x-api-key: ${adminKey}"\n  -d "${payload}"\n  ${apiUrl}/internal/client`;
       log(cmd);
     }
 
@@ -409,7 +317,7 @@
       const apiUrl = document.getElementById('apiUrl').value.trim();
       const adminKey = document.getElementById('adminApiKey').value.trim();
       try {
-        const res = await fetch(`${apiUrl}/internal/auth/clients`, { headers: { 'x-api-key': adminKey } });
+        const res = await fetch(`${apiUrl}/internal/clients`, { headers: { 'x-api-key': adminKey } });
         const text = await res.text();
         log(`Clients: ${text}`);
       } catch (e) {
