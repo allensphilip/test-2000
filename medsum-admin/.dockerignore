@@ -1,0 +1,9 @@
+node_modules
+pnpm-lock.yaml.md5
+.git
+.gitignore
+.DS_Store
+dist
+.vscode
+coverage
+.env*

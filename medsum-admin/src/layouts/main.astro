@@ -1,0 +1,24 @@
+---
+import DashboardSidebar from "@/components/layout/DashboardSidebar"
+import ToasterIsland from '@/components/providers/ToasterIsland';
+import '../styles/global.css';
+const { content, user, active } = Astro.props;
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<title>{content.title}</title>
+	</head>
+	<body>
+    <div class="grid grid-cols-[16rem_1fr]">
+      <DashboardSidebar user={{name: user.name, email: user.email }} active={active} client:load />
+      <main class="p-6">
+        <slot />
+      </main>
+    </div>
+    <ToasterIsland client:load />
+	</body>
+</html>

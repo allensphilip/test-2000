@@ -1,0 +1,15 @@
+---
+import '../styles/global.css';
+import ExplanationsPanel from '@/components/explanations/ExplanationsPanel';
+
+const {user} = Astro.locals as any
+if (!user) return Astro.redirect("/login")
+
+import MainLayout from "@/layouts/main.astro"
+---
+
+<MainLayout content={{title: "Medsum - Explanations"}} user={user} active="explanations">
+  <div class="mx-auto max-w-5xl">
+    <ExplanationsPanel client:load/>
+  </div>
+</MainLayout>

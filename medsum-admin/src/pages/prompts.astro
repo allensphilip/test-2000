@@ -1,0 +1,27 @@
+---
+
+import '../styles/global.css';
+
+import PromptsList from "@/components/PromptsList"
+import { toast } from 'sonner';
+
+const {user} = Astro.locals as any
+if (!user) return Astro.redirect("/login")
+
+
+let initial:any[] = []
+try {
+  const response = await fetch(Astro.url.origin + "/api/internal/prompts")
+  if (response.ok) initial = await response.json()
+} catch {
+  toast.error("Failed to get prompts")
+}
+
+import MainLayout from "@/layouts/main.astro"
+---
+
+<MainLayout content={{title: "Medsum - Prompts"}} user={user} active="prompts">
+  <div class="mx-auto max-w-5xl">
+    <PromptsList initial={initial} client:load />
+  </div>
+</MainLayout>

@@ -1,0 +1,26 @@
+---
+import '../styles/global.css';
+import MicrosoftSignIn from '@/components/auth/MicrosoftSignIn'
+
+
+const {user} = Astro.locals as any
+if (user) return Astro.redirect("/")
+
+
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="generator" content={Astro.generator} />
+		<title>Medsum - Login</title>
+	</head>
+
+	<body>
+		<div class="grid place-items-center h-screen content-center">
+      <MicrosoftSignIn client:load />
+		</div>
+	</body>
+</html>
