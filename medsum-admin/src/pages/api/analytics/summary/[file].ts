@@ -1,9 +1,10 @@
 import type { APIRoute } from "astro"
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ params }) => {
   try {
     const base = (process.env.ANALYTICS_API_BASE_URL || "http://localhost:8080").replace(/\/$/, "")
-    const res = await fetch(`${base}/summary-analysis/list`, { cache: "no-store" })
+    const file = encodeURIComponent(params.file || "")
+    const res = await fetch(`${base}/summary-analysis/${file}`, { cache: "no-store" })
     const body = await res.text().catch(() => "")
     return new Response(body, {
       status: res.status,

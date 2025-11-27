@@ -21,15 +21,13 @@ export type SummaryRow = {
   client_id?: number
 }
 
-const origin = typeof window === 'undefined'
-  ? (process.env.APP_URL_INTERNAL?.replace(/\/$/, '')
-    || process.env.APP_URL?.replace(/\/$/, '')
-    || 'http://localhost:80')
-  : ''
+const isServer = typeof window === 'undefined'
+const baseServer = (process.env.ANALYTICS_API_BASE_URL || '').replace(/\/$/, '')
 
 export const fetchTranscriptionList = async (): Promise<TranscriptionRow[]> => {
   try {
-    const res = await fetch(`${origin}/api/analytics/transcription/list`, { cache: 'no-store' })
+    const url = isServer ? `${baseServer}/transcript-analysis/list` : `/api/analytics/transcription/list`
+    const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) return []
     return res.json() as Promise<TranscriptionRow[]>
   } catch {
@@ -39,7 +37,8 @@ export const fetchTranscriptionList = async (): Promise<TranscriptionRow[]> => {
 
 export const fetchSummaryList = async (): Promise<SummaryRow[]> => {
   try {
-    const res = await fetch(`${origin}/api/analytics/summary/list`, { cache: 'no-store' })
+    const url = isServer ? `${baseServer}/summary-analysis/list` : `/api/analytics/summary/list`
+    const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) return []
     return res.json() as Promise<SummaryRow[]>
   } catch {
@@ -49,7 +48,8 @@ export const fetchSummaryList = async (): Promise<SummaryRow[]> => {
 
 export const fetchCorrections = async (job: string): Promise<{index:number;before:string;after:string}[]> => {
   try {
-    const res = await fetch(`${origin}/api/analytics/transcription/${encodeURIComponent(job)}/corrections`, { cache: 'no-store' })
+    const url = isServer ? `${baseServer}/transcript-analysis/${encodeURIComponent(job)}/corrections` : `/api/analytics/transcription/${encodeURIComponent(job)}/corrections`
+    const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) return []
     return res.json()
   } catch {

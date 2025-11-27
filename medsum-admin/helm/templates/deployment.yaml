@@ -43,6 +43,8 @@ spec:
           env:
             - name: APP_URL
               value: {{ .Values.app_url | quote }}
+            - name: ANALYTICS_API_BASE_URL
+              value: {{ .Values.analytics_api_base_url | quote }}
             - name: AUTH_MICROSOFT_ENTRA_ID_ID
               valueFrom:
                 secretKeyRef:

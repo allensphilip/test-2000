@@ -110,6 +110,22 @@
   --sidebar-ring: oklch(0.553 0.013 58.071);
 }
 
+/* Responsive helpers for analytics */
+.analytics-grid-2 {
+  display: grid;
+}
+@media (max-width: 768px) {
+  .analytics-grid-2 {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.analytics-section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

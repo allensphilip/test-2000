@@ -3,6 +3,8 @@ import MainLayout from "@/layouts/main.astro"
 import { KpiCards } from "@/components/analytics/KpiCards"
 import { Filters } from "@/components/analytics/Filters"
 import { TrendChart } from "@/components/analytics/TrendChart"
+import { BarChart } from "@/components/analytics/BarChart"
+import PairsChart from "@/components/analytics/PairsChart"
 import AnalyticsTabs from "@/components/analytics/AnalyticsTabs"
 import { fetchTranscriptionList, fetchSummaryList, fetchCorrections } from "@/lib/analytics-api"
 
@@ -14,27 +16,108 @@ const summary = await fetchSummaryList()
 
 const avg = (xs: number[]) => xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : 0
 const kpis = [
-  { title: "Transcription WER", value: avg(transcription.map(t=>t.wer)).toFixed(3) },
-  { title: "Transcription CER", value: avg(transcription.map(t=>t.cer)).toFixed(3) },
-  { title: "Summary WER", value: avg(summary.map(s=>s.wer)).toFixed(3) },
-  { title: "Summary CER", value: avg(summary.map(s=>s.cer)).toFixed(3) },
+  { title: "Transcription Avg WER", value: avg(transcription.map(t=>t.wer)).toFixed(3), caption: `n=${transcription.length}` },
+  { title: "Transcription Avg CER", value: avg(transcription.map(t=>t.cer)).toFixed(3), caption: `n=${transcription.length}` },
+  { title: "Summary Avg WER", value: avg(summary.map(s=>s.wer)).toFixed(3), caption: `n=${summary.length}` },
+  { title: "Summary Avg CER", value: avg(summary.map(s=>s.cer)).toFixed(3), caption: `n=${summary.length}` },
 ]
 
-const trendWer = transcription.slice(0, 20).map(t=>t.wer)
-const labels = [] as string[]
-const values = [] as number[]
+const trendPoints = transcription.slice(0, 10).map(t=>({ v: t.wer, ts: t.created_at }))
+
+const pairsLabels: string[] = []
+const pairsValues: number[] = []
+const pairsCounts: number[] = []
 ---
+<style>
+  .analytics-page-container {
+    height: calc(100vh - 3rem);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .analytics-fixed-header {
+    flex-shrink: 0;
+  }
+
+  .analytics-scrollable-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    margin-top: 16px;
+    overflow: hidden;
+  }
+
+  .analytics-section-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: #0f172a;
+  }
+
+  .charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 1rem;
+    align-items: start;
+  }
+
+  @media (max-width: 1200px) {
+    .charts-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .chart-container {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .chart-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: #1e293b;
+  }
+
+  .chart-wrapper {
+    height: 220px;
+    display: flex;
+    flex-direction: column;
+  }
+</style>
 <MainLayout content={{ title: "Medsum - Analytics" }} user={user} active="analytics">
-  <section>
-    <h1>Analytics</h1>
-    <KpiCards items={kpis} />
-  </section>
-  <section style="margin-top:16px;">
-    <Filters client:load onChange={() => {}} />
-  </section>
-  <section style="margin-top:16px;">
-    <h3>WER Trend (recent)</h3>
-    <TrendChart values={trendWer} />
-  </section>
-  <AnalyticsTabs client:load />
+  <div class="analytics-page-container">
+    <div class="analytics-fixed-header">
+      <section>
+        <h1 class="analytics-section-title">Analytics</h1>
+        <KpiCards items={kpis} />
+      </section>
+      <section style="margin-top: 16px;">
+        <Filters client:load onChange={() => {}} />
+      </section>
+      <section style="margin-top: 16px;">
+        <div class="charts-grid">
+          <div class="chart-container">
+            <h3 class="chart-title">WER Trend (Recent Transcriptions)</h3>
+            <div class="chart-wrapper">
+              <TrendChart points={trendPoints} client:load />
+            </div>
+          </div>
+          <div class="chart-container">
+            <h3 class="chart-title">Best Model + Prompt Pairs (Avg WER)</h3>
+            <div class="chart-wrapper">
+              <PairsChart client:load />
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+    <div class="analytics-scrollable-content">
+      <AnalyticsTabs client:load />
+    </div>
+  </div>
 </MainLayout>

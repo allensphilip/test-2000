@@ -1,0 +1,23 @@
+---
+import '../styles/global.css';
+import { listClients, type Client } from "@/server/clients";
+import { toast } from 'sonner';
+
+const {user} = Astro.locals as any
+if (!user) return Astro.redirect("/login")
+
+let clients: Client[] = []
+
+try {
+  clients = await listClients()
+} catch (e: any) {
+  toast.error(e?.message ?? "Couldn't fetch clients")
+}
+
+import MainLayout from "@/layouts/main.astro"
+---
+<MainLayout content={{title: "Medsum - Labs"}} user={user} active="labs">
+  <div class="mx-auto max-w-5xl">
+    <h1>Labs!</h1>
+  </div>
+</MainLayout>

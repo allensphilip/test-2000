@@ -1,4 +1,5 @@
 app_url: https://medsum-admin.carasent.net
+analytics_api_base_url: ""
 
 image:
   repository: harbor.prod.carasent-ck8s.com/medsum/medsum-admin

@@ -10,22 +10,18 @@ import {
   Briefcase,
   Home,
   BarChart2,
+  FlaskConical,
 } from "lucide-react"
 import { clearActiveClient, getActiveClient, type ClientSelection } from "@/lib/client-selection"
-import { useEffect, useState, } from "react"
+import { useEffect, useState } from "react"
 import { Badge } from "../ui/badge"
 
 type Props = {
   user: { name: string, email: string }
-  active?: "overview" | "prompts" | "keys" | "explanations" | "features" | "analytics"
-  onNav?: (path: string) => void
+  active?: "overview" | "prompts" | "keys" | "explanations" | "features" | "labs" | "analytics"
 }
 
-const DashboardSidebar = ({ user, active, onNav }: Props) => {
-  const go = (href: string): void => {
-    if (onNav) return onNav(href)
-    window.location.href = href
-  }
+const DashboardSidebar = ({ user, active }: Props) => {
 
   const [activeClient, setActiveClient] = useState<ClientSelection | null>(null)
 
@@ -107,6 +103,13 @@ const DashboardSidebar = ({ user, active, onNav }: Props) => {
           <a href="/analytics">
             <BarChart2 className="size-4" aria-hidden />
             Analytics
+          </a>
+        </Button>
+
+        <Button asChild variant={active === "labs" ? "default" : "ghost"} className="w-full justify-start gap-2">
+          <a href="/labs">
+            <FlaskConical className="size-4" aria-hidden />
+            Labs
           </a>
         </Button>
       </nav>

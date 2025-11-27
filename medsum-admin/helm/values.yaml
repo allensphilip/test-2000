@@ -1,5 +1,7 @@
 replicaCount: 1
 
+analytics_api_base_url: ""
+
 imagePullSecrets: [name: harbor-read]
 nameOverride: ""
 fullnameOverride: ""
