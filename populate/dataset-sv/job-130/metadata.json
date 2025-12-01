@@ -1,6 +1,6 @@
 {
-  "jobId": "job-008",
-  "modelId": "gemini-pro",
+  "jobId": "job-130",
+  "modelId": "claude-3.5-sonnet",
   "promptId": 102,
   "clientId": 11,
   "explanationIds": []

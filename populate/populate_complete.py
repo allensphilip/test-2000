@@ -2,7 +2,7 @@
 """
 Complete Analytics Population Workflow
 
-1. Creates a test client and gets API key
+1. Creates a test client and gets API key (or uses existing)
 2. For each dataset:
    - POST /v1/text/summary with original text (generates summary, stores metadata)
    - POST /v1/text/summary/correction with corrected text (triggers analytics)
@@ -12,7 +12,8 @@ Requirements:
 
 Environment Variables:
     MEDSUM_API_URL - medsum-api base URL (default: https://medsum.carasent.dev)
-    MEDSUM_ADMIN_API_KEY - Admin API key for creating client (required)
+    MEDSUM_CLIENT_API_KEY - Existing client API key (optional, skips client creation)
+    MEDSUM_ADMIN_API_KEY - Admin API key for creating client (required if no client key)
     UPLOAD_DELAY - Delay between operations in seconds (default: 2.0)
     REQUEST_TIMEOUT - Request timeout in seconds (default: 60)
 
@@ -33,6 +34,7 @@ load_dotenv()
 
 # Configuration
 MEDSUM_API_URL = os.getenv('MEDSUM_API_URL', 'https://medsum.carasent.dev')
+MEDSUM_CLIENT_API_KEY = os.getenv('MEDSUM_CLIENT_API_KEY', '')
 MEDSUM_ADMIN_API_KEY = os.getenv('MEDSUM_ADMIN_API_KEY', '')
 UPLOAD_DELAY = float(os.getenv('UPLOAD_DELAY', '2.0'))
 REQUEST_TIMEOUT = int(os.getenv('REQUEST_TIMEOUT', '60'))
@@ -119,14 +121,32 @@ class PopulateWorkflow:
                 'language': 'se'
             }
             
+            # Verbose request preview
             self.log(f"  → Generating summary (journal {journal})...", 'INFO')
+            self.log(f"    • POST {url}", 'INFO')
+            self.log(f"    • Headers: X-API-Key set, Timeout: {REQUEST_TIMEOUT}s", 'INFO')
+            preview_text = (original_text[:200] + '...') if len(original_text) > 200 else original_text
+            self.log(f"    • Payload: application={application}, journal={journal}, language=se", 'INFO')
+            self.log(f"    • Text Preview: {preview_text}", 'INFO')
+
             response = self.client_session.post(url, json=payload, timeout=REQUEST_TIMEOUT)
             
             if response.status_code in [200, 201]:
                 self.log(f"  ✓ Summary generated and stored", 'SUCCESS')
+                # Verbose response
+                self.log(f"    • Status: {response.status_code}", 'INFO')
+                try:
+                    resp_json = response.json()
+                    resp_preview = json.dumps(resp_json)[:500]
+                    self.log(f"    • Response JSON: {resp_preview}", 'INFO')
+                except Exception:
+                    resp_preview = (response.text or '')[:500]
+                    self.log(f"    • Response Text: {resp_preview}", 'INFO')
                 return True
             else:
-                self.log(f"  ✗ Summary failed: {response.status_code} - {response.text}", 'ERROR')
+                self.log(f"  ✗ Summary failed: {response.status_code}", 'ERROR')
+                self.log(f"    • Endpoint: {url}", 'ERROR')
+                self.log(f"    • Response: {(response.text or '')[:1000]}", 'ERROR')
                 return False
                 
         except Exception as e:
@@ -143,14 +163,32 @@ class PopulateWorkflow:
                 'text': corrected_text
             }
             
+            # Verbose request preview
             self.log(f"  → Submitting correction (journal {journal})...", 'INFO')
+            self.log(f"    • POST {url}", 'INFO')
+            self.log(f"    • Headers: X-API-Key set, Timeout: {REQUEST_TIMEOUT}s", 'INFO')
+            preview_text = (corrected_text[:200] + '...') if len(corrected_text) > 200 else corrected_text
+            self.log(f"    • Payload: application={application}, journal={journal}", 'INFO')
+            self.log(f"    • Correction Preview: {preview_text}", 'INFO')
+
             response = self.client_session.post(url, json=payload, timeout=REQUEST_TIMEOUT)
             
             if response.status_code in [200, 201]:
                 self.log(f"  ✓ Correction submitted (analytics triggered)", 'SUCCESS')
+                # Verbose response
+                self.log(f"    • Status: {response.status_code}", 'INFO')
+                try:
+                    resp_json = response.json()
+                    resp_preview = json.dumps(resp_json)[:500]
+                    self.log(f"    • Response JSON: {resp_preview}", 'INFO')
+                except Exception:
+                    resp_preview = (response.text or '')[:500]
+                    self.log(f"    • Response Text: {resp_preview}", 'INFO')
                 return True
             else:
-                self.log(f"  ✗ Correction failed: {response.status_code} - {response.text}", 'ERROR')
+                self.log(f"  ✗ Correction failed: {response.status_code}", 'ERROR')
+                self.log(f"    • Endpoint: {url}", 'ERROR')
+                self.log(f"    • Response: {(response.text or '')[:1000]}", 'ERROR')
                 return False
                 
         except Exception as e:
@@ -161,7 +199,7 @@ class PopulateWorkflow:
         """Process a single dataset: summary -> correction"""
         self.log(f"\n📄 [{index}] Processing: {job_id}", 'INFO')
         
-        # Extract journal number
+        # Defaults derived from folder name
         application = 'populate'
         journal_num = int(job_id.split('-')[-1])
         
@@ -169,6 +207,24 @@ class PopulateWorkflow:
         job_folder = DATASET_DIR / job_id
         original_file = job_folder / 'original.txt'
         summary_file = job_folder / 'summary.txt'
+        metadata_file = job_folder / 'metadata.json'
+
+        # Optional metadata overrides (application, journal, language)
+        if metadata_file.exists():
+            try:
+                with open(metadata_file, 'r', encoding='utf-8') as mf:
+                    meta = json.load(mf)
+                if isinstance(meta, dict):
+                    if 'application' in meta and isinstance(meta['application'], str):
+                        application = meta['application']
+                    if 'journal' in meta and isinstance(meta['journal'], int):
+                        journal_num = meta['journal']
+                    if 'language' in meta and isinstance(meta['language'], str):
+                        # Accept 'se' or 'sv' variants; normalize down below if needed
+                        pass
+                    self.log(f"  • Using metadata overrides: application={application}, journal={journal_num}", 'INFO')
+            except Exception as e:
+                self.log(f"  ⚠️  Failed to read metadata.json: {e}", 'WARNING')
         
         # Check files exist
         if not original_file.exists() or not summary_file.exists():
@@ -199,7 +255,9 @@ class PopulateWorkflow:
         except Exception as e:
             self.log(f"  ✗ Error: {e}", 'ERROR')
             return False
-    job datasets in folder structure"""
+    
+    def discover_datasets(self):
+        """Discover all job datasets in folder structure"""
         jobs = []
         
         # Find all job-XXX folders
@@ -207,9 +265,7 @@ class PopulateWorkflow:
             if job_folder.is_dir():
                 jobs.append(job_folder.name)
         
-        return s.append(job_id)
-        
-        return summary_jobs
+        return jobs
     
     def run(self):
         """Execute complete workflow"""
@@ -219,10 +275,16 @@ class PopulateWorkflow:
         self.log(f"Dataset: {DATASET_DIR}")
         self.log(f"{'='*70}\n")
         
-        # Step 1: Create client
-        if not self.create_client():
-            self.log("\n❌ Failed to create client. Aborting.", 'ERROR')
-            return False
+        # Step 1: Setup client (create new or use existing)
+        if MEDSUM_CLIENT_API_KEY:
+            self.log("STEP 1: Using existing client API key...", 'STEP')
+            self.client_api_key = MEDSUM_CLIENT_API_KEY
+            self.client_session.headers.update({'X-API-Key': self.client_api_key})
+            self.log(f"  ✓ Client API Key: {self.client_api_key[:20]}...", 'SUCCESS')
+        else:
+            if not self.create_client():
+                self.log("\n❌ Failed to create client. Aborting.", 'ERROR')
+                return False
         
         time.sleep(1)
         
@@ -273,20 +335,27 @@ def main():
     """)
     
     # Validate config
-    if not MEDSUM_ADMIN_API_KEY:
-        print("❌ ERROR: MEDSUM_ADMIN_API_KEY not set (required for creating client)")
-        print("   Set MEDSUM_ADMIN_API_KEY in .env file")
-        print("   This is the admin API key from medsum-admin")
+    if not MEDSUM_CLIENT_API_KEY and not MEDSUM_ADMIN_API_KEY:
+        print("❌ ERROR: No API key configured")
+        print("   Option 1: Set MEDSUM_CLIENT_API_KEY to use existing client")
+        print("   Option 2: Set MEDSUM_ADMIN_API_KEY to create new client")
+        print("   Configure in .env file")
         return 1
     
     print(f"Configuration:")
     print(f"  API URL:           {MEDSUM_API_URL}")
-    print(f"  Admin API Key:     Configured")
+    if MEDSUM_CLIENT_API_KEY:
+        print(f"  Client API Key:    Configured (existing)")
+    else:
+        print(f"  Admin API Key:     Configured (will create client)")
     print(f"  Operation Delay:   {UPLOAD_DELAY}s")
     print(f"  Timeout:           {REQUEST_TIMEOUT}s")
     print(f"  Dataset Dir:       {DATASET_DIR}")
     print(f"\n📋 Workflow:")
-    print(f"  Step 1: POST /internal/auth/client (create test client)")
+    if MEDSUM_CLIENT_API_KEY:
+        print(f"  Step 1: Use existing client API key")
+    else:
+        print(f"  Step 1: POST /internal/auth/client (create test client)")
     print(f"  Step 2: For each dataset:")
     print(f"          → POST /v1/text/summary (generate + store metadata)")
     print(f"          → POST /v1/text/summary/correction (trigger analytics)")
