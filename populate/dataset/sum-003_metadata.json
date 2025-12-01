@@ -1,0 +1,7 @@
+{
+  "jobId": "job-2025-003",
+  "modelId": "gpt-4o",
+  "promptId": 101,
+  "clientId": 10,
+  "explanationIds": [4, 5]
+}

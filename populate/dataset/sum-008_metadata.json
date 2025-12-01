@@ -1,0 +1,7 @@
+{
+  "jobId": "job-2025-008",
+  "modelId": "gemini-pro",
+  "promptId": 105,
+  "clientId": 14,
+  "explanationIds": [12]
+}

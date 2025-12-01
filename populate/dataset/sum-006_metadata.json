@@ -1,0 +1,7 @@
+{
+  "jobId": "job-2025-006",
+  "modelId": "claude-3.5-sonnet",
+  "promptId": 102,
+  "clientId": 13,
+  "explanationIds": [9]
+}
